@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.vsix
+*.tsbuildinfo
+.env
+.DS_Store
+
+# never commit game files or data extracted from them
+*.archive
+*.dll
+*.exe
+rtti-dump*
