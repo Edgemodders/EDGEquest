@@ -12,7 +12,7 @@
 
 The EDGE quest maker for Cyberpunk 2077, a VS Code extension in the EDGE family. Open any of the game's quests and read it in plain words: its steps, its choices, who says what, what goes in the journal. Then write your own: a new gig, a phone call, a conversation with a choice that matters. Or skip the UI: EDGEquest's MCP server lets REDagent or Claude do it when you say "add a side gig where Wakako sends V to collect a debt".
 
-EDGEquest builds on the other EDGE tools: [REDcode](https://github.com/Edgemodders/REDcode) for the project and packing, [REDbridge](https://github.com/Edgemodders/REDbridge) for game files, [EDGEwave](https://github.com/Edgemodders/EDGEwave) for voice, [EDGEbuilder](https://github.com/Edgemodders/EDGEbuilder) for people and places in the world, and [REDdeck](https://github.com/Edgemodders/REDdeck) and [REDnode](https://github.com/Edgemodders/REDnode) to try the quest in the game.
+EDGEquest builds on the other EDGE tools: [REDcode](https://github.com/Edgemodders/REDcode) for the project and packing, [REDbridge](https://github.com/Edgemodders/REDbridge) for game files, [EDGEwave](https://github.com/Edgemodders/EDGEwave) for voice, [EDGEbuilder](https://github.com/Edgemodders/EDGEbuilder) for people and places in the world, and [EDGEdeck](https://github.com/Edgemodders/EDGEdeck) and [REDnode](https://github.com/Edgemodders/REDnode) to try the quest in the game.
 
 **[Read the docs](https://edgemodders.github.io/EDGEquest/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 

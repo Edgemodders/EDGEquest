@@ -2,7 +2,7 @@
 
 EDGEquest writes new quests for Cyberpunk 2077. It is a VS Code extension in the EDGE family, with an MCP server. A modder describes a quest: who gives it, what V does, what people say, what choices there are, and how it ends. EDGEquest turns that into the game's own quest data: the quest graph, its phases, dialogue scenes, journal entries and facts. It also reads the game's quests, so a modder can learn from them, copy them, or hook into them. Or the modder asks REDagent or Claude: "add a side gig where Wakako sends V to collect a debt".
 
-**Status: draft 0.1, a starting brief.** Written on 2026-10-16 by the REDcode session that scaffolded this repo. It holds what was checked against the game that day, the family's boundaries as they stand, and the questions to settle. It is not agreed decisions: everything marked *open* or *unverified* is for EDGEquest's own first session to settle with the owner. That session replaces this page, section by section, with the real design. Next: Q0.
+**Status: draft 0.2, agreed with the owner on 2026-10-21.** Q0 replaced the starting brief (draft 0.1, 2026-10-16) with what was checked against the game, ArchiveXL, the community wiki and two quest mods; the details are on [Quest formats](design/formats.html). Next: Q1.
 
 ## Mission
 
@@ -15,113 +15,132 @@ EDGE brings modding to everyone, especially non-coders: easy, fun and fast. A qu
 | Learn from the game | Any game quest opens read-only, explained in the same plain words |
 | Everything the UI does, an assistant can do | Each feature ships in the UI and the MCP server together |
 | Try it in seconds | One action packs, deploys, and starts or jumps to a step in the running game |
+| The best tool even with AI switched off | No network calls or telemetry until an assistant or an AI service the user chose connects |
+
+## Decisions
+
+Agreed in Q0 with the owner.
+
+| Question | Decision |
+|---|---|
+| What EDGEquest writes | **The game's own quest files first** (`.quest`, `.questphase`, `.scene`, `.journal`, the localization JSON), added through ArchiveXL so no game file is replaced. Quests run by REDnode come later. CyberScript is studied for what quests need, never targeted: it is broken in places on the current game |
+| How a new quest starts | A new phase under the game's root quest (ArchiveXL `quest.phases` with parent `cyberpunk2077.quest`), which starts once per save, also in an existing save. Hooking into a game phase (`input`, `output`) is supported for experts, with a conflict warning |
+| Dependencies | ArchiveXL, always. TweakXL only when a quest adds records (images, items). Codeware or redscript only when a quest needs code. Fewer is better for players |
+| Scenes | A new scene starts from a template EDGEquest makes, or a copy of a game scene with the leftovers cleaned out (the Judy mod shipped 48 unused text entries from its copied scene) |
+| Texts | Every journal title, objective and line gets new keys in the mod's own onscreens and subtitle files, made by EDGEquest. A mod never overrides a whole game localization file (the Judy mod did, and lost every other language) |
+| Facts | A quest's own facts carry its prefix. Writing a game fact is allowed and always flagged, because it changes the base game's story |
+| Raw graphs | WolvenKit already edits phases and scenes as node graphs. EDGEquest's graph view is for reading and for the story layer; raw edits open in REDcode's CR2W editor or WolvenKit |
 
 ## What quest data is made of
 
-Checked on 2026-10-16 against the installed game, with Phantom Liberty, through `redcode-mcp` and REDbridge 0.10.0: `archive_list` over all 583,798 game files, `cr2w_read` on sample files. The class and field names are the game's own.
+The full account, with counts, the ArchiveXL keys and sources, is on [Quest formats](design/formats.html). In short:
 
-| File | Count | What it is | Shape seen |
-|---|---|---|---|
-| `.quest` | 734 | A quest's top graph (`questQuestResource`) | `graph` (a `questGraphDefinition`), `phasePrefabs`, `inplacePhases`. In `mq303.quest`: start, end, three phase nodes and a switch |
-| `.questphase` | 3,838 | A phase: a sub-graph of steps (`questQuestPhaseResource`) | The same fields as `.quest`. Nodes are handles; each has an `id` and `sockets`, and each socket lists its `connections`. Node types seen in one phase: input, pause condition (with a facts condition), combat, logical XOR, facts DB manager, event manager, character manager, cut control |
-| `.scene` | 8,553 | A dialogue or cinematic scene (`scnSceneResource`) | `actors`, `playerActors`, `entryPoints`, `exitPoints`, `sceneGraph` (start, section, choice and quest nodes), `screenplayStore` (`lines` and choice `options`), `locStore`, `workspots`, `props`, `sceneCategoryTag` |
-| `.journal` | 2 files (the base one is in two archives) | The journal (`gameJournalResource`): `base\journal\cooked_journal.journal` and `ep1\journal\cooked_journal.journal` | One root folder with nine folders: quests, metaquests, codex, contacts, tarots, briefings, points of interest, onscreens, internet sites |
-| Subtitles | 3,800 JSON files in en-us | Dialogue text, per language: `<root>\localization\<language>\subtitles\...` | Separate from the onscreens texts that REDcode's LocKeys view covers |
-| Voice | 102,158 `.wem` in en-us | Spoken lines, per language: `<root>\localization\<language>\vo\` | Names such as `<speaker>_<quest>_<f or m>_<id>.wem` |
-| Lip sync | 7,268 `.anims` in en-us, one `en-us.lipmap` | Mouth animation per line | Scene lines name a male and a female lip-sync animation |
-| Voice-over maps | 17 JSON files | `<root>\localization\common\voiceovermap*.json` | Not opened yet |
-
-Where they live (counts of `.questphase` files): `base\open_world` 1,474, `base\quest` 1,364, `ep1\openworld` 535, `ep1\quest` 436, the rest in `base\media`, `base\gameplay` and `dlc`. One quest folder, `ep1\quest\minor_quests\mq303`, holds 183 files: 8 phases, 6 scenes, 50 entities, 79 meshes, 17 animation sets, 9 workspots, 4 communities. A quest is more than its graphs.
-
-A scene line (`scnscreenplayDialogLine`) has a speaker, an addressee, a `locstringId` (a CRUID) and the two lip-sync names. The text itself is in the subtitle files and the scene's embedded `locStore`. How they join is *unverified*.
-
-### Unverified, for Q0 to check
-
-| Claim | Where it comes from |
+| Part | Files |
 |---|---|
-| Facts are named integers in the quests system; graphs set and test them, and scripts read them through `questQuestsSystem` `GetFact` and `SetFact` | The node and condition types above, and REDnode's game reference, which lists `questQuestsSystem` with `GetFact`, `GetFactStr` and `SetFact` |
-| ArchiveXL can add journal entries and inject new phases into existing quests, so a mod does not replace game files | Community practice. Read ArchiveXL's own documentation and check against a working mod |
-| WolvenKit shows and edits `.questphase` and `.scene` files as graphs | Community practice. Check which WolvenKit version and what it can do, and credit it |
-| How a new quest starts: hooked into an existing phase, started by a fact, by a phone call, by a place | Open. Study working quest mods (their file sets, not their code) |
-| How scene lines join their subtitle text and voice files | Open |
-| Which game data must agree for a quest to load: journal paths, fact names, node ids, `NodeRef` paths to people and places in the world | Open |
+| The quest and its phases | `.quest` (734 in the game), `.questphase` (3,838): graphs of nodes joined socket to socket. The game's root is `base\quest\cyberpunk2077.quest` |
+| Dialogue | `.scene` (8,553): actors, a scene graph, the screenplay's lines and choice options |
+| The journal | `.journal`: quests, objectives, contacts and messages, codex, shards, points of interest |
+| Text and voice | Onscreens (journal texts), subtitles (spoken lines), voice-over maps, line lengths, `.wem`, lip sync. One id ties a spoken line together across all of them |
+| The world | `.streamingblock` and `.streamingsector`: the spots, areas and markers a quest refers to by NodeRef |
+
+The links between them are the [table of what must agree](design/formats.html#what-must-agree-across-files). It is what `quest_check` tests.
 
 ## What EDGEquest owns, and what it does not
 
-EDGEquest owns the story layer, which no other EDGE tool owns, and calls the others for the rest. This split is a proposal for Q0 to confirm with the owner and the sibling designs.
+EDGEquest owns the story layer, which no other EDGE tool owns, and calls the others for the rest. Checked against the sibling repos on 2026-10-21.
 
-| Job | Owner | EDGEquest's part |
-|---|---|---|
-| **The quest**: quest and phase graphs, facts, the journal entries, dialogue scenes (lines, choices, who speaks), the checks that they agree | **EDGEquest** | Its core |
-| Reading and writing any game file | REDbridge (`cr2w.*`), as a separate process | Calls it. Graph-aware needs go to REDbridge as requests |
-| Raw edits of any file | REDcode's CR2W editor, which already opens all these files | Opens files there for raw edits |
-| The project, packing | REDcode, through `REDcodeApi` version 1 | Calls it |
-| Onscreen texts (LocKeys) | REDcode's LocKeys view and REDbridge `loc.*` | Uses them. Subtitles are not covered yet: a likely REDbridge request |
-| Voice for new lines (recorded, or AI voice opt-in) | EDGEwave | Hands lines over; EDGEwave makes and imports the audio |
-| People and places in the world: NPC spawn points, markers, props | EDGEbuilder | References what EDGEbuilder places |
-| New items as rewards, new characters' looks | EDGEfab, TweakDB through REDbridge | References them |
-| Deploying | REDdeck | Through REDcode's install |
-| The running game: facts, starting a step, the journal, teleporting V for a test | REDnode (game API, MCP server) | One "Try it" action that calls it |
+| Job | Owner | Today | EDGEquest's part |
+|---|---|---|---|
+| **The quest**: quest and phase graphs, facts, journal entries, dialogue scenes, the checks that they agree, and the graph views for `.quest`, `.questphase` and `.scene` | **EDGEquest** | | Its core |
+| Reading and writing any game file | REDbridge 0.10.0 (`cr2w.*`, `archive.*`), a separate process | Enough for Q1 and Q2 | Its own bridge client, or REDcode's running bridge |
+| Subtitles, voice-over maps, line lengths | REDbridge `loc.*` | Onscreens only | **Request:** the same for spoken lines |
+| Raw edits of any file | REDcode's CR2W editor (`redcode.cr2w`) | Opens `.quest`, `.questphase`, `.scene`, not `.journal` | Opens files there through `vscode.openWith`. **Request:** `.journal` too, and the graph editors REDcode once planned for C6 move here |
+| The project, packing, Pack and Try | REDcode 0.10.2, `REDcodeApi` version 1 (`project`, `pack`, `packAndTry`) | Ready | Calls it |
+| Onscreen texts (LocKeys) | REDcode's LocKeys view, REDbridge `loc.*` | Ready | Uses them |
+| Deploying | EDGEdeck (`EDGEdeckApi` 1, `@edgemodders/edgedeck-mcp`) | Ready | Through REDcode's install or EDGEdeck's API |
+| The running game: facts, the journal, starting a phase, moving V | REDnode | Only the raw `api_call`; `archives_reload` swaps archives live | **Request:** quest calls and MCP tools |
+| Voice for new lines | EDGEwave 0.1.0 | Speak Line (ElevenLabs, opt-in) makes a WAV; no API, no MCP, no `.wem` | **Request:** voice a list of lines, and a `.wem` route. Until then, lines are unvoiced |
+| Places and people: spots, trigger areas, map markers, NPC spawns | EDGEbuilder 0.3.4 | Places meshes, entities and lights with NodeRefs; markers, areas and NPC spawns not planned | **Request:** quest places. Until then, quests use places the game already has |
+| New items as rewards | EDGEfab (design only), TweakXL | | References their records |
+| Shipping to assistants | EDGEchat (the Claude Code plugin), EDGEkit | | Asks to be listed once released |
 
 ## Shape
 
-The same shape as EDGEmat and EDGEfab, so the family stays one pattern. Names are proposals.
+The same shape as EDGEmat, so the family stays one pattern.
 
 | Part | What it is |
 |---|---|
-| `extensions/edgequest` | The VS Code extension, id `edgemodders.edgequest` (proposed). Its own **activity bar container**, icon [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEquest/blob/main/tools/brand/activity.svg) (HUD brackets around a branching graph, one color). Views: the quests in the project, the game's quests, a quest's steps |
-| `extensions/edgequest/src/core` | Everything that is not UI. **No VS Code imports**, so the MCP server bundles it |
-| `packages/edgequest-mcp` | The MCP server over stdio |
+| `extensions/edgequest` | The VS Code extension, id `edgemodders.edgequest`. Its own **activity bar container**, icon [`tools/brand/activity.svg`](https://github.com/Edgemodders/EDGEquest/blob/main/tools/brand/activity.svg). Views: the game's quests, the quests in the project. A quest page for one quest |
+| `extensions/edgequest/src/core` | Everything that is not UI: the bridge client (copied from REDcode, MIT), reading graphs, describing nodes in plain words, the checks. **No VS Code imports**, so the MCP server bundles it |
+| `packages/edgequest-mcp` | The MCP server over stdio, `@edgemodders/edgequest-mcp` |
 
 | Relationship | How |
 |---|---|
-| REDcode | Optional but expected. `REDcodeApi` version 1 (`edgemodders.redcode-cyberpunk`): game folder, bridge, open project, pack. Never imports its code |
-| REDbridge | Every game file read and write. Needs go to REDbridge as `request` issues |
-| EDGEwave, EDGEbuilder, EDGEfab, REDnode, REDdeck | Through their APIs and MCP servers, when present; requests as issues |
-| EDGEkit, EDGEplugin | Bundled, and taught to the assistant, once released |
+| REDcode | Optional but expected. `REDcodeApi` version 1, taken only once REDcode is active: game folder, bridge, project, pack. Never imports its code |
+| Settings | `edgequest.gamePath`, `edgequest.bridgePath`, `edgequest.dotnetRoot`, each falling back to the `redcode.*` setting |
+| The other tools | Through their APIs and MCP servers when present; needs as `request` issues |
 
 ## The MCP server
 
-Intent, not plumbing. Proposed names, settled in Q0:
+The same conventions as `edgemat-mcp` and `redcode-mcp`, so EDGEchat lists it like the others.
 
-| Tool | Does |
+| Part | Convention |
 |---|---|
-| `quest_find` | Finds game quests by name, character, place or line of dialogue |
-| `quest_describe` | A quest in plain words: its steps, choices, facts, journal entries and scenes |
-| `quest_new` | Starts a new quest from a short description, or from a game quest to copy |
-| `quest_check` | Checks a quest's files against each other and names what is wrong in plain words |
-| `quest_try` | Packs, deploys, and starts the quest or jumps to a step in the running game |
+| Server | Name `edgequest`, stdio. stdout is the MCP channel; logs go to stderr as `[edgequest-mcp]` |
+| Build | One file, `dist/server.cjs`, bundled by esbuild with the core and the MCP SDK; Node 20 or newer; MIT |
+| Settings | `--game`, `--bridge`, `--dotnet-root`; then `EDGEQUEST_GAME_PATH`, `REDBRIDGE_EXE`, `DOTNET_ROOT`; then the VS Code settings, `edgequest.*` before `redcode.*`. **An empty value counts as unset**, because a Claude Code plugin passes an unset option as an empty string |
+| Bridge | Started on the first tool that needs it |
+| Errors | Returned as tool errors in plain words |
+| In EDGEchat | `cmd /c npx -y @edgemodders/edgequest-mcp@<version>`, with `EDGEQUEST_GAME_PATH` and `REDBRIDGE_EXE` from the plugin's options. Asked of EDGEchat once the package is on npm |
 
-## Phases (proposed)
+Tools are about intent, not file plumbing:
 
-For the first session to agree with the owner. Reading comes before writing, because the game's quests are the documentation.
+| Tool | Does | Phase |
+|---|---|---|
+| `quest_find` | Finds game quests by name, folder, character, fact or line of dialogue | Q1 |
+| `quest_describe` | A quest or phase in plain words: its steps, choices, facts, journal entries and scenes | Q1 |
+| `quest_scene` | A scene's lines and choices with speakers and text | Q1 |
+| `quest_check` | Checks a quest's files against each other, in a project or a mod archive, and names what is wrong in plain words | Q1 |
+| `quest_new` | Starts a new quest from a short description, or from a game quest to copy | Q2 |
+| `quest_edit` | Adds and changes steps, lines, choices, facts and journal entries | Q2 |
+| `quest_try` | Packs, deploys, and starts the quest or jumps to a step in the running game | Q3 |
+
+## Phases
+
+Reading comes before writing, because the game's quests are the documentation. Each phase ends with a test on the dev PC.
 
 | Phase | Builds | The test proves |
 |---|---|---|
-| **Q0 Design** | Study the formats above and working quest mods, settle the unverified rows, agree the boundaries and the phases. The design document is the output | The owner agrees the design |
-| **Q1 Read** | Extension and MCP skeletons. Any game quest opens as steps, choices and scenes, read-only | A modder follows a game quest from start to end without opening a raw file |
-| **Q2 Write** | A new quest from a template: one phase, facts, a journal entry, a short scene with a choice | A new quest shows in the journal and its scene plays, in the game |
-| **Q3 Try it** | Pack, deploy, start the quest or jump to a step, watch its facts live | A change shows in the running game without a restart (unverified whether quests can reload live) |
-| **Q4 Voice and world** | Lines to EDGEwave for voice, people and places from EDGEbuilder | A quest with a voiced NPC standing where the modder placed them |
-| **Q5 Ship** | Docs, the MCP package, Open VSX and Marketplace, the EDGEkit bundle | A non-coder makes a small quest from the docs alone |
+| **Q0 Design** | The formats studied, two quest mods read, the boundaries and phases agreed, requests filed | **Done 2026-10-21** |
+| **Q1 Read** | Extension and MCP skeletons. The game's quests in a tree. A quest page: the phase graph read as steps, with facts, journal entries and scenes in plain words; a scene's lines and choices with their text. `quest_check` on a project or a mod archive | A modder follows a game quest from start to end without opening a raw file. `quest_check` finds the Judy mod's known faults |
+| **Q2 Write** | A new quest from a template: one phase under the root quest, facts, a journal entry with an objective, a short unvoiced scene with a choice, the `.xl`. Copy a game scene and clean it | A new quest shows in the journal and its scene plays, in the game, in a save made before the mod was installed |
+| **Q3 Try it** | Pack, deploy, start the quest or jump to a step, watch its facts live (REDnode) | A change shows in the running game without a restart, or the reason it cannot |
+| **Q4 Voice and world** | Lines to EDGEwave for voice; places and people from EDGEbuilder | A quest with a voiced NPC standing where the modder placed them |
+| **Q5 Ship** | Docs, the MCP package on npm, Open VSX and Marketplace, EDGEkit and EDGEchat entries | A non-coder makes a small quest from the docs alone |
 
 ## Open questions
 
-| Question | Notes |
+Each is answered by a test in the phase named.
+
+| Question | Phase |
 |---|---|
-| New quest or hook into an old one | A new quest needs a way to start. Hooking into the game's own phases risks conflicts with other mods |
-| Which dependencies | ArchiveXL and TweakXL are likely; Codeware or redscript only if a quest needs code. Fewer is better for players |
-| How much of the graph to show | Steps and choices for most people; the full node graph for experts. The game has dozens of node types |
-| Scenes | Dialogue scenes are the biggest files (up to 3.3 MB). Writing new ones from scratch may be hard; copying and editing a game scene may be the first step |
-| Voice | Every line needs subtitles in each language, voice per language, and lip sync. What can be left out, and what the game does without it |
-| Save games | Facts and quest state live in the save. What happens when a quest mod is removed or changed |
-| Live reload | Whether REDnode can reload a quest phase in the running game, or only start and jump |
+| Whether an unvoiced line plays, and for how long it shows, without a line-length entry | Q2 |
+| What a save does when a running phase file is gone (the mod removed) | Q2 |
+| Whether a running phase or scene picks up a reloaded archive, or only a new save load does | Q3 |
+| Whether REDnode can start a phase or jump to a node in the running game | Q3 |
+| Scene performer ids (`actorId × 256 + 1`, from a wiki stub) | Q2 |
+| How the slot framework behind the Judy mod starts quests | When the owner finds it |
+| How many node types Q1 must describe in plain words, and which ones most phases use | Q1, from a count over the game's phases |
 
 ## Sources
 
 | Source | What it gave |
 |---|---|
-| The installed game, through `redcode-mcp` | Every count and shape in "What quest data is made of" |
-| [REDnode game reference](https://edgemodders.github.io/REDnode/game/) | `questQuestsSystem`, `gameJournalManager` and the quest node types |
+| The installed game, through `redcode-mcp` | Every count, shape and join on [Quest formats](design/formats.html) |
+| ArchiveXL by psiberx (source and release notes) | The `.xl` keys a quest mod uses |
+| The [Cyberpunk 2077 modding wiki](https://wiki.redmodding.org/) | Quest guides: facts, sockets, phone messages, holocalls, voice, lip sync |
+| Two quest mods, studied for their file sets and behavior only | What a native quest mod ships, and what to avoid |
+| The game's decompiled scripts ([Cyberpunk-Scripts](https://github.com/CDPR-Modding-Documentation/Cyberpunk-Scripts)) | How scripts read and set facts |
+| [REDnode game reference](https://edgemodders.github.io/REDnode/game/) | `questQuestsSystem`, `gameJournalManager` |
 | [REDcode API](https://edgemodders.github.io/REDcode/api.html) | `REDcodeApi` version 1 |
-| [EDGEfab design](https://edgemodders.github.io/EDGEfab/design.html) | The family's shape, copied here |
+| [EDGEmat design](https://edgemodders.github.io/EDGEmat/design.html) | The family's shape and MCP conventions, copied here |
