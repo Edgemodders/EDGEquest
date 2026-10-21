@@ -6,7 +6,8 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077: a VS Code extension in the
 
 - Scaffold created 2026-10-16 by the REDcode session: README, license, docs site (HUD layout, dev setup), brand sources and images (icon "EQ", activity bar icon), Pages workflow. No code.
 - **Q0 done 2026-10-21: design draft 0.2 agreed with the owner.** [docs/design.md](docs/design.md) has the decisions (native quest files first through ArchiveXL, REDnode quests later, CyberScript studied only), the boundaries checked against the sibling repos that day, the shape, the MCP conventions (same as `edgemat-mcp`) and phases Q1 to Q5. [docs/design/formats.md](docs/design/formats.md) has the formats, checked against the game, ArchiveXL and two quest mods.
-- **Next: Q1 Read.** Extension and MCP skeletons on EDGEmat's pattern, the game's quests in a tree, a quest page in plain words, `quest_check`.
+- **Q1 Read built 2026-10-21** (see `docs/testing.md`): core (graph reader, plain-words describer, scene reader, quest index, renderer, `quest_check`), the extension (Game Quests view, Find Quest, quest page, Check Quest Mod), MCP `quest_index`, `quest_find`, `quest_describe`, `quest_scene`, `quest_check`. `npm run smoke` passes 14 checks. **Next:** the owner's hand test of Q1 in the development host, then Q2 Write.
+- Test data for `quest_check`: the Judy mod (Nexus 7833) is in this session's scratchpad only; never commit mod files.
 - Requests filed on 2026-10-21 (see the design's boundaries table): REDbridge (spoken lines in `loc.*`), REDcode (`.journal` in the CR2W editor, quest graph editors move here), REDnode (quest calls), EDGEwave (voice a list of lines, `.wem`), EDGEbuilder (quest places).
 - At the start of each session: read this repo's open issues labelled `request` (needs from other EDGE repos), and check whether the requests EDGEquest filed elsewhere have answers.
 

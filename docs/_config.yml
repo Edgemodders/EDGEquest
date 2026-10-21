@@ -26,6 +26,8 @@ nav:
     url: /design.html
   - title: Formats
     url: /design/formats.html
+  - title: Tests
+    url: /testing.html
   - title: Dev setup
     url: /dev-setup.html
   - title: REDcode

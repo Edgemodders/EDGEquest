@@ -3,7 +3,7 @@
 // with the same game, and builds the quest index from the user's game in the background.
 
 import * as vscode from "vscode";
-import { BridgeClient, buildIndex, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
+import { BridgeClient, buildIndex, checkMarkdown, checkQuestMod, defaultCacheDir, modFromArchive, modFromFolder, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
 import { QuestPages } from "./questPage";
 import { QuestTree } from "./questTree";
 
@@ -167,6 +167,36 @@ async function findQuest(): Promise<void> {
   qp.show();
 }
 
+async function checkMod(target?: vscode.Uri): Promise<void> {
+  let uri = target;
+  if (!uri) {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: true,
+      canSelectMany: false,
+      title: "A quest mod to check: its .archive (with the .xl beside it), a WolvenKit project folder, or a folder of extracted files",
+      filters: { "Mod archive": ["archive"], "All files": ["*"] },
+    });
+    uri = picked?.[0];
+  }
+  if (!uri) return;
+  const chosen = uri.fsPath;
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `EDGEquest: checking ${chosen.slice(chosen.lastIndexOf("\\") + 1)}` }, async () => {
+    try {
+      const bridge = await bridgeNow();
+      const mod = chosen.toLowerCase().endsWith(".archive") ? await modFromArchive(bridge, chosen) : modFromFolder(chosen);
+      const result = await checkQuestMod(mod, bridge, index);
+      const doc = await vscode.workspace.openTextDocument({ language: "markdown", content: checkMarkdown(chosen.slice(chosen.lastIndexOf("\\") + 1), result) });
+      await vscode.window.showTextDocument(doc, { preview: true });
+      await vscode.commands.executeCommand("markdown.showPreview", doc.uri);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`Check failed: ${msg}`);
+      void vscode.window.showErrorMessage(`EDGEquest could not check ${chosen}: ${msg}`);
+    }
+  });
+}
+
 async function setGameFolder(): Promise<void> {
   const picked = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, title: "Your Cyberpunk 2077 folder (the one holding bin, archive and r6)" });
   const dir = picked?.[0]?.fsPath;
@@ -193,6 +223,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("edgequest.rebuildIndex", () => refresh(true)),
     vscode.commands.registerCommand("edgequest.setGameFolder", setGameFolder),
     vscode.commands.registerCommand("edgequest.find", findQuest),
+    vscode.commands.registerCommand("edgequest.check", checkMod),
     vscode.commands.registerCommand("edgequest.open", (gamePath: string) => pages.open(gamePath)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("edgequest") || e.affectsConfiguration("redcode.gamePath") || e.affectsConfiguration("redcode.bridgePath")) void refresh();

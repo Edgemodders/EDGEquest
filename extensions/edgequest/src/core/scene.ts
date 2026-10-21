@@ -6,7 +6,7 @@
 // Text: the scene's own locStore holds the text per locale (checked on sq030_01_dam_meetup: 60 of its
 // 64 en_us lines equal the en-us subtitles). Subtitles passed in by the caller win over it.
 
-import { describeCondition, describeNode } from "./describe";
+import { describeCondition, describeNode, type StepInfo } from "./describe";
 import { deref, value, type Json, type QuestNode } from "./graph";
 
 export interface SceneActor { id: number; name: string; player: boolean }
@@ -42,6 +42,8 @@ export interface SceneStep {
   options?: SceneOption[];
   /** Where each output leads: socket label and node ids. */
   next: { socket: string; to: number[] }[];
+  /** For a quest node: what it does, with the facts, journal entries and refs it uses. */
+  info?: StepInfo;
 }
 
 export interface SceneFile {
@@ -164,7 +166,8 @@ export function readScene(json: Json, subtitles?: Map<string, string>): SceneFil
         const q = deref(d.questNode, h);
         if (q) {
           const node: QuestNode = { id, type: String(q.$type), data: q, sockets: [] };
-          step.text = describeNode(node, h).text;
+          step.info = describeNode(node, h);
+          step.text = step.info.text;
         }
         break;
       }

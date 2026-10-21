@@ -42,7 +42,8 @@
     "onCommand:edgequest.refresh",
     "onCommand:edgequest.rebuildIndex",
     "onCommand:edgequest.find",
-    "onCommand:edgequest.open"
+    "onCommand:edgequest.open",
+    "onCommand:edgequest.check"
   ],
   "contributes": {
     "viewsContainers": {
@@ -92,6 +93,12 @@
         "icon": "$(search)"
       },
       {
+        "command": "edgequest.check",
+        "title": "Check Quest Mod...",
+        "category": "EDGEquest",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "edgequest.refresh",
         "title": "Refresh",
         "category": "EDGEquest",
@@ -134,12 +141,24 @@
           "command": "edgequest.rebuildIndex",
           "when": "view == edgequest.gameQuests",
           "group": "more"
+        },
+        {
+          "command": "edgequest.check",
+          "when": "view == edgequest.gameQuests",
+          "group": "navigation@3"
         }
       ],
       "commandPalette": [
         {
           "command": "edgequest.open",
           "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "edgequest.check",
+          "when": "resourceExtname == .archive || explorerResourceIsFolder",
+          "group": "edgequest"
         }
       ]
     },
@@ -171,7 +190,8 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "vscode-jsonrpc": "^9.0.3"
+    "vscode-jsonrpc": "^9.0.3",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

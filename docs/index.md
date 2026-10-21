@@ -6,7 +6,8 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 |---|---|
 | [Design](design.html) | The mission, the decisions, what quest data is made of, what EDGEquest owns and what the other EDGE tools do, its shape, the MCP server, the phases, open questions. Draft 0.2, agreed 2026-10-21 |
 | [Quest formats](design/formats.html) | The game's quest files, how one id ties a spoken line together, how a mod adds a quest through ArchiveXL, what must agree across files, two quest mods studied |
-| [Dev setup](dev-setup.html) | What a PC needs to work on EDGEquest |
+| [Tests](testing.html) | Every test run on the dev PC, with its result |
+| [Dev setup](dev-setup.html) | What a PC needs to work on EDGEquest, and how to build, test and package it |
 | [REDcode docs](https://edgemodders.github.io/REDcode/) | The editor extension and the bridge EDGEquest builds on |
 | [REDnode docs](https://edgemodders.github.io/REDnode/) | The running game, and the game API reference |
 
@@ -17,7 +18,7 @@ As of 2026-10-21.
 | Phase | Status |
 |---|---|
 | Q0 Design | Done 2026-10-21 |
-| Q1 Read | Next |
+| Q1 Read | Built 2026-10-21; the owner's hand test is next |
 | Q2 Write | Not started |
 | Q3 Try it | Not started |
 | Q4 Voice and world | Not started |

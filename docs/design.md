@@ -2,7 +2,7 @@
 
 EDGEquest writes new quests for Cyberpunk 2077. It is a VS Code extension in the EDGE family, with an MCP server. A modder describes a quest: who gives it, what V does, what people say, what choices there are, and how it ends. EDGEquest turns that into the game's own quest data: the quest graph, its phases, dialogue scenes, journal entries and facts. It also reads the game's quests, so a modder can learn from them, copy them, or hook into them. Or the modder asks REDagent or Claude: "add a side gig where Wakako sends V to collect a debt".
 
-**Status: draft 0.2, agreed with the owner on 2026-10-21.** Q0 replaced the starting brief (draft 0.1, 2026-10-16) with what was checked against the game, ArchiveXL, the community wiki and two quest mods; the details are on [Quest formats](design/formats.html). Next: Q1.
+**Status: draft 0.2, agreed with the owner on 2026-10-21.** Q0 replaced the starting brief (draft 0.1, 2026-10-16) with what was checked against the game, ArchiveXL, the community wiki and two quest mods; the details are on [Quest formats](design/formats.html). Q1 Read built on 2026-10-21 ([Tests](testing.html)); the owner's hand test is next.
 
 ## Mission
 
@@ -112,7 +112,7 @@ Reading comes before writing, because the game's quests are the documentation. E
 | Phase | Builds | The test proves |
 |---|---|---|
 | **Q0 Design** | The formats studied, two quest mods read, the boundaries and phases agreed, requests filed | **Done 2026-10-21** |
-| **Q1 Read** | Extension and MCP skeletons. The game's quests in a tree. A quest page: the phase graph read as steps, with facts, journal entries and scenes in plain words; a scene's lines and choices with their text. `quest_check` on a project or a mod archive | A modder follows a game quest from start to end without opening a raw file. `quest_check` finds the Judy mod's known faults |
+| **Q1 Read** | Extension and MCP skeletons. The game's quests in a tree. A quest page: the phase graph read as steps, with facts, journal entries and scenes in plain words; a scene's lines and choices with their text. `quest_check` on a project or a mod archive. **Built 2026-10-21:** the quest index (every quest and phase with its facts, journal entries, scenes, phases and NodeRefs, and the journal's titles), Find Quest, the quest page with links and Raw, Check Quest Mod; MCP `quest_index`, `quest_find`, `quest_describe`, `quest_scene`, `quest_check`. `quest_check` found all the Judy mod's known faults and two new ones | A modder follows a game quest from start to end without opening a raw file. `quest_check` finds the Judy mod's known faults (**passed 2026-10-21**) |
 | **Q2 Write** | A new quest from a template: one phase under the root quest, facts, a journal entry with an objective, a short unvoiced scene with a choice, the `.xl`. Copy a game scene and clean it | A new quest shows in the journal and its scene plays, in the game, in a save made before the mod was installed |
 | **Q3 Try it** | Pack, deploy, start the quest or jump to a step, watch its facts live (REDnode) | A change shows in the running game without a restart, or the reason it cannot |
 | **Q4 Voice and world** | Lines to EDGEwave for voice; places and people from EDGEbuilder | A quest with a voiced NPC standing where the modder placed them |
@@ -130,7 +130,8 @@ Each is answered by a test in the phase named.
 | Whether REDnode can start a phase or jump to a node in the running game | Q3 |
 | Scene performer ids (`actorId × 256 + 1`, from a wiki stub) | Q2 |
 | How the slot framework behind the Judy mod starts quests | When the owner finds it |
-| How many node types Q1 must describe in plain words, and which ones most phases use | Q1, from a count over the game's phases |
+| How many node types Q1 must describe in plain words | **Answered 2026-10-21:** 60 node classes, 250 subtypes, 111 condition kinds in the game; about 45 subtypes and 30 conditions cover 95%, and are described in words. The rest show their class name in words ([Tests](testing.html)) |
+| Whether the index should also read the game's 8,553 scenes, so facts set in scenes count as set | Q2 |
 
 ## Sources
 

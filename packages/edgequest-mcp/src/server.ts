@@ -15,7 +15,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  BridgeClient, buildIndex, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
+  BridgeClient, buildIndex, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
   sceneMarkdown, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
@@ -189,6 +189,34 @@ server.registerTool(
     try {
       const { json, title } = await loadJson({ path: p, file });
       return text(sceneMarkdown(title, readScene(json), limit));
+    } catch (e) {
+      return failure(e);
+    }
+  },
+);
+
+server.registerTool(
+  "quest_check",
+  {
+    description:
+      "Check a quest mod's files against each other and against the game, in plain words: the .xl entries (phases, journal, texts, world blocks) and the files they need, " +
+      "how each phase starts, child phases' sockets, files that replace the game's own, journal entries and their texts, onscreens keys that clash with the game's, " +
+      "scene lines without subtitles, leftovers from a copied scene, and the game's own facts the mod sets. Give archive (a mod .archive with its .xl beside it) or folder " +
+      "(a WolvenKit project, or a folder of extracted files laid out by game path). Uses the quest index for the game-side checks.",
+    inputSchema: {
+      archive: z.string().optional().describe("A mod .archive, such as <game>\archive\pc\mod\MyQuest.archive; its .xl files beside it are read too."),
+      folder: z.string().optional().describe("Or a WolvenKit project folder (with its .cpmodproj), or a folder of extracted files."),
+    },
+  },
+  async ({ archive, folder }) => {
+    try {
+      if (!archive && !folder) throw new Error("Give archive (a mod .archive) or folder (a WolvenKit project or extracted files).");
+      const target = (archive ?? folder)!;
+      if (!fs.existsSync(target)) throw new Error(`No such ${archive ? "file" : "folder"}: ${target}`);
+      const b = await getBridge();
+      const mod = archive ? await modFromArchive(b, archive) : modFromFolder(folder!);
+      const result = await checkQuestMod(mod, b, await index());
+      return text(checkMarkdown(path.basename(target), result));
     } catch (e) {
       return failure(e);
     }
