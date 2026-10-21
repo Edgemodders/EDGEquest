@@ -36,6 +36,7 @@ EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as ev
 ## Conventions
 
 - Same as the sibling repos (see REDcode's and EDGEfab's CLAUDE.md): commit straight to `main` in small logical commits and push; agree the plan in chat first; PRs only for large or risky changes. Plain, short sentences; tables for comparisons and facts; mark anything unverified as unverified.
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md), the Edgemodders convention (issue #1, copied from REDnode). Add a line under **Unreleased** in the same commit as the change; leave out changes only the tests see. Release notes for GitHub, the stores and Nexus come from it.
 - **Git identity:** per repo, `CyberbuildsAI` with the GitHub no-reply email (`340969962+CyberbuildsAI@users.noreply.github.com`), already set in this checkout. Never change the global identity. A push can block on a Git Credential Manager sign-in window; if it does, tell the owner rather than retrying.
 - **Never commit game files**, WolvenKit binaries, or data extracted from the game. Class and field names, game paths, counts and a few short example values in docs are fine. No dialogue text from the game beyond a few words.
 - **License boundary:** this repo is MIT. Talk to REDbridge (GPL-3.0) only as a separate process; never link it or copy WolvenKit code here. Study other mods and tools for how quests are built (their file sets and behavior), never copy their code or data, and credit WolvenKit and the community where their work informs ours.
