@@ -222,7 +222,7 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
       for (const n of g.nodes) {
         const res = value(n.data.phaseResource);
         const scene = value(n.data.sceneFile);
-        for (const target of [res, scene].filter((t): t is string => typeof t === "string" && !!t && t !== "0")) {
+        for (const target of [res, scene].filter((t): t is string => typeof t === "string" && !!t)) {
           if (!(await exists(target))) add("error", "missing-file", `${p} node ${n.id} plays ${target}, which is not in the mod${bridge ? " or the game" : ""}.`, p);
         }
         if (typeof res === "string" && has(res)) {

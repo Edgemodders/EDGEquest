@@ -11,7 +11,7 @@ import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
 import { readQuestFile, value, type Json } from "./graph";
 
-export const IndexVersion = 1;
+export const IndexVersion = 2;
 
 export interface IndexedFile {
   path: string;

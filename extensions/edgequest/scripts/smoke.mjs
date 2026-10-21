@@ -43,6 +43,7 @@ try {
   check(sum.facts.length > 0 && sum.journal.length > 0 && sum.scenes.length > 0, "sq030 uses facts, journal entries and scenes", `${sum.facts.length} facts, ${sum.journal.length} journal entries, ${sum.scenes.length} scenes`);
   const md = core.questMarkdown("sq030", sq030);
   check(/Wait until|If |Set fact|Journal:/.test(md), "sq030 in plain words");
+  check(!/Phase 0\b/.test(md) && !sum.phases.includes("0") && !sum.scenes.includes("0"), "inline phases do not read as a phase file \"0\"");
 
   const scene = core.readScene(await read("base\\quest\\side_quests\\sq030\\scenes\\sq030_01_dam_meetup.scene"));
   check(scene.lines.length === 59 && scene.options.length === 13, "sq030_01_dam_meetup lines, and options in its choices", `${scene.lines.length} lines, ${scene.options.length} options`);

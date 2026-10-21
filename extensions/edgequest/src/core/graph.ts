@@ -43,11 +43,15 @@ export interface QuestFile {
   handles: Map<string, Json>;
 }
 
-/** The value of a CName, NodeRef, ResourcePath or similar wrapper; plain values pass through. */
+/** The value of a CName, NodeRef, ResourcePath or similar wrapper; plain values pass through.
+ *  An empty resource path is stored as the hash "0" and reads as "". */
 export function value(x: Json): Json {
   if (x && typeof x === "object") {
     if ("$value" in x) return x.$value;
-    if ("DepotPath" in x) return value(x.DepotPath);
+    if ("DepotPath" in x) {
+      const p = value(x.DepotPath);
+      return p === "0" ? "" : p;
+    }
   }
   return x;
 }
