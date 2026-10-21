@@ -132,7 +132,7 @@ Each is answered by a test in the phase named.
 | Scene performer ids (`actorId × 256 + 1`, from a wiki stub) | Q2 |
 | How the slot framework behind the Judy mod starts quests | When the owner finds it |
 | How many node types Q1 must describe in plain words | **Answered 2026-10-21:** 60 node classes, 250 subtypes, 111 condition kinds in the game; about 45 subtypes and 30 conditions cover 95%, and are described in words. The rest show their class name in words ([Tests](testing.html)) |
-| Whether the index should also read the game's 8,553 scenes, so facts set in scenes count as set | Q2 |
+| Whether the index should also read the game's 4,627 scenes, so facts set in scenes count as set | Q2 |
 
 ## Sources
 

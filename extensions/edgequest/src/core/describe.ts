@@ -52,20 +52,26 @@ export function humanize(type: string): string {
 const Compare: Record<string, string> = { Greater: ">", GreaterOrEqual: "≥", Equal: "=", NotEqual: "≠", Less: "<", LessOrEqual: "≤" };
 const cmp = (x: Json, def = "Greater") => Compare[str(x) || def] ?? str(x);
 
+/** A NodeRef's path; an empty one is stored as "0" and reads as "". */
+const refOf = (x: Json): string => {
+  const r = str(x);
+  return r === "0" ? "" : r;
+};
+
 /** Who or what an entity reference points at: V, a name in a community, or a NodeRef. */
 function who(x: Json, refs: string[], h: Handles): string {
   const r = deref(x, h);
   if (!r || typeof r !== "object") return str(r) || "?";
   if (flag(r.refLocalPlayer, false) || flag(r.mainPlayerObject, false)) return "V";
   const inner = r.entityReference ? deref(r.entityReference, h) : r;
-  const ref = str(inner?.reference);
+  const ref = refOf(inner?.reference);
   const names = (inner?.names ?? []).map(str).filter(Boolean);
   if (ref) refs.push(ref);
   if (names.length && ref) return `${names.join(", ")} (${ref})`;
   return names.join(", ") || ref || (r.isPlayer ? "V" : "someone");
 }
 const node = (x: Json, refs: string[]) => {
-  const r = str(x);
+  const r = refOf(x);
   if (r) refs.push(r);
   return r || "?";
 };
@@ -223,7 +229,7 @@ export function describeNode(n: QuestNode, h: Handles, incoming: QuestEdge[] = [
     }
     case "questSceneNodeDefinition": {
       const scene = str(d.sceneFile);
-      const at = str(deref(d.sceneLocation, h)?.nodeRef);
+      const at = refOf(deref(d.sceneLocation, h)?.nodeRef);
       if (at) refs.push(at);
       return out("scene", `Scene ${base(scene)}${at ? ` at ${at}` : ""}`, { scene });
     }

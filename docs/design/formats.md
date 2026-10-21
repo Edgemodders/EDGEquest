@@ -75,6 +75,36 @@ This is what `quest_check` will test.
 | Reloading archives in a running game | RedHotTools reloads archives and asks ArchiveXL to reload; WolvenKit has a hot reload button | RedHotTools source |
 | A running phase or scene picking up changes | Not documented; reloading then loading an earlier save should work | *Unverified* |
 
+## Places, map markers and arriving (Q2 study, 2026-10-21)
+
+What a new quest needs to send V somewhere, checked against the game files, the Judy mod and ArchiveXL's journal source.
+
+| Question | Finding | Status |
+|---|---|---|
+| Where a map marker's position comes from | `base\worlds\03_night_city\_compiled\default\03_night_city.mappins` (`gameMappinResource`): 4,337 compiled positions, plus 41 GPS and 5 multi-position entries. Each is keyed by the **journal path's hash** (Murmur3, seed `0x5EEDBA5E`, of the full path), not by a NodeRef. 4,266 of them match a journal path in the game, so every game marker has a known name, quest and world position | Checked in the game |
+| A new quest's marker | Has no compiled position. ArchiveXL fills it in when the game asks: with a NodeRef in `reference`, from that node's transform plus `offset`; **with no NodeRef, `offset` is the world position itself** | ArchiveXL source (Journal extension) |
+| How game quests wait for V to arrive | Distance from V to a node, `questDistanceComparison` (V vs `nodeRef2`), at 2 to 10 m: hundreds of uses. Or V inside a trigger area node. Both need the node loaded in the world | Checked in the game |
+| GPS distance to a marker (`questMappinGPSComparison`) | Needs no node, only the marker. The game uses it only at 1,000 m and more (courier timers) | Short range *unverified*: the Q2 test |
+| Game NodeRefs from a quest's own prefab | A phase lists its world prefabs (`phasePrefabs`, for example `#mq026_pr_smuggler`); its trigger areas and spots live there. Whether they exist while that quest is not running is *unverified* | Q2 test |
+| The Judy mod's places | Its own sector, added through `streaming.blocks`: a trigger area, two AI spots and a static marker, NodeRefs under a game prefab's path. Its markers point at those NodeRefs with a 0.5 m height offset | Seen in the mod |
+| `fileEntryIndex` in a journal path | The position in the path of the entry that owns the file: the quest (`quests/minor_quest/mq026_conspiracy/...` is 2; the Judy mod's `quests/main_quest/prologue/nq_californication` is 3) or the contact (`contacts/judy/...` is 1). Default -1 | Seen in the game and a mod |
+| A scene's place | `sceneLocation` is a `scnWorldMarker`: a NodeRef (5,036 scene nodes in the game) or a tag. **The tag `around_player` (156 uses) plays the scene wherever V is**, so a scene with V alone or a phone call needs no place | Checked in the game |
+
+## The smallest scenes (Q2 study, 2026-10-21)
+
+A scan of the game's 4,627 `.scene` files (4 failed to read): 102 have V as the only actor, 96 of them with a choice. The smallest with lines and a choice is `mq017_streetkid_chicken_test.scene` (2 lines, 4 options); the smallest phone call is `courier_sandbox_holocall_ambush.scene` (5 lines). What a scene with V alone holds:
+
+| Part | Content |
+|---|---|
+| Actors | `playerActors`: one `scnPlayerActorDef`, `findInContext`, contextual name `Player`, record `Character.Player_Puppet_Base`. `actors` is empty |
+| Graph | `scnStartNode` → `scnSectionNode` (dialogue line events) → `scnChoiceNode` → … → `scnEndNode`. Node ids are small numbers; an output socket is `(name, ordinal)`, and a choice's option *i* leaves from socket `(0, i)` |
+| Lines | A section's `scnDialogLineEvent` has `screenplayLineId`, `startTime` and `duration` in ms, `voParams` (`Vo_Context_Quest`, `Vo_Expression_Spoken`). Screenplay item ids step by 256 (1, 257, 513, …); option ids sit between them (2, …) |
+| Text | `screenplayStore` lines and options point at a `locstringId`; `locStore` maps it per locale (`db_db`, `en_us`, …) to a variant and its text |
+| Performers | `debugSymbols` lists each performer: V's `#player` is performer id 1 for actor id 0, so **performer = actorId × 256 + 1 holds** |
+| Entry and exit | `entryPoints` `Start 0` and `exitPoints` `End 0`, which become the phase's scene node sockets |
+| Other | Empty workspots, props, effects; an `interruptionScenarios` default; `resouresReferences` lists the lip sync anim set; `sceneCategoryTag` (`minorQuests`, `other`, …) |
+| A phone call | The caller is a `scnActorDef` (`spawnSet`); their lines have `isHolocallSpeaker` 1 and `Vo_Expression_Phone`. How the phase opens the call and shows the caller's portrait is the next study |
+
 ## Tools that already edit quests
 
 WolvenKit edits `.questphase` and `.scene` as node graphs (since 8.12.1, reworked in 8.17.0): add and connect nodes, a scene editor with a timeline, dialogue import from JSON (9.0.0), copying game lip sync. It has no undo yet. Whether it opens `.quest` as a graph is *unverified*. EDGEquest's place next to it: the story layer, checks across files, and assistants; raw graph editing stays in WolvenKit and REDcode's CR2W editor.
