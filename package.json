@@ -1,0 +1,24 @@
+{
+  "name": "edgequest-workspace",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "extensions/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "smoke": "npm run smoke --workspace extensions/edgequest",
+    "edgequest:package": "node -e \"require('fs').mkdirSync('dist',{recursive:true})\" && cd extensions/edgequest && vsce package --no-dependencies --out ../../dist/",
+    "mcp:build": "npm run build --workspace packages/edgequest-mcp",
+    "mcp:start": "node packages/edgequest-mcp/dist/server.cjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0",
+    "ovsx": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

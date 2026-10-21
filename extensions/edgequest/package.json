@@ -1,0 +1,147 @@
+{
+  "name": "edgequest",
+  "displayName": "EDGEquest",
+  "description": "The EDGE quest maker for Cyberpunk 2077: read the game's quests in plain words, their steps, choices, dialogue and journal entries, and check a quest mod's files against each other.",
+  "publisher": "edgemodders",
+  "version": "0.1.0",
+  "license": "MIT",
+  "preview": true,
+  "galleryBanner": {
+    "color": "#08090d",
+    "theme": "dark"
+  },
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Edgemodders/EDGEquest.git",
+    "directory": "extensions/edgequest"
+  },
+  "homepage": "https://edgemodders.github.io/EDGEquest/",
+  "bugs": {
+    "url": "https://github.com/Edgemodders/EDGEquest/issues"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "cyberpunk",
+    "cyberpunk2077",
+    "modding",
+    "quests",
+    "dialogue",
+    "wolvenkit"
+  ],
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:edgequest.gameQuests",
+    "onCommand:edgequest.setGameFolder",
+    "onCommand:edgequest.showLog",
+    "onCommand:edgequest.refresh"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "edgequest",
+          "title": "EDGEquest",
+          "icon": "images/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "edgequest": [
+        {
+          "id": "edgequest.gameQuests",
+          "name": "Game Quests"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "edgequest.gameQuests",
+        "contents": "EDGEquest needs your Cyberpunk 2077 folder to read the game's quests.\n[Set Game Folder](command:edgequest.setGameFolder)",
+        "when": "edgequest.state == noGame"
+      },
+      {
+        "view": "edgequest.gameQuests",
+        "contents": "EDGEquest reads the game through REDbridge, which was not found. Install REDcode and run its \"Install REDbridge\" command, or set edgequest.bridgePath to REDbridge.exe.\n[Open Settings](command:workbench.action.openSettings?%22edgequest.bridgePath%22)\n[Show Log](command:edgequest.showLog)",
+        "when": "edgequest.state == noBridge"
+      },
+      {
+        "view": "edgequest.gameQuests",
+        "contents": "Reading the game's quests...",
+        "when": "edgequest.state == loading"
+      },
+      {
+        "view": "edgequest.gameQuests",
+        "contents": "The game's quests could not be read.\n[Show Log](command:edgequest.showLog)\n[Try Again](command:edgequest.refresh)",
+        "when": "edgequest.state == error"
+      }
+    ],
+    "commands": [
+      {
+        "command": "edgequest.setGameFolder",
+        "title": "Set Game Folder",
+        "category": "EDGEquest"
+      },
+      {
+        "command": "edgequest.showLog",
+        "title": "Show Log",
+        "category": "EDGEquest"
+      },
+      {
+        "command": "edgequest.refresh",
+        "title": "Refresh",
+        "category": "EDGEquest",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "edgequest.refresh",
+          "when": "view == edgequest.gameQuests",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "EDGEquest",
+      "properties": {
+        "edgequest.gamePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The Cyberpunk 2077 folder (the one holding `bin`, `archive` and `r6`). Empty: use REDcode's game folder, then EDGEdeck's, then search the machine."
+        },
+        "edgequest.bridgePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "REDbridge.exe, or the folder holding it. Empty: use REDcode's `redcode.bridgePath`, then REDbridge on PATH. When REDcode is running with the same game, EDGEquest uses REDcode's bridge."
+        },
+        "edgequest.dotnetRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "DOTNET_ROOT for the bridge, when .NET 10 is installed per user. Empty: use REDcode's `redcode.dotnetRoot`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "vscode-jsonrpc": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "1.70.0",
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3"
+  }
+}
