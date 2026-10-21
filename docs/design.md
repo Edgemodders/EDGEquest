@@ -53,14 +53,14 @@ EDGEquest owns the story layer, which no other EDGE tool owns, and calls the oth
 |---|---|---|---|
 | **The quest**: quest and phase graphs, facts, journal entries, dialogue scenes, the checks that they agree, and the graph views for `.quest`, `.questphase` and `.scene` | **EDGEquest** | | Its core |
 | Reading and writing any game file | REDbridge 0.10.0 (`cr2w.*`, `archive.*`), a separate process | Enough for Q1 and Q2 | Its own bridge client, or REDcode's running bridge |
-| Subtitles, voice-over maps, line lengths | REDbridge `loc.*` | Onscreens only | **Request:** the same for spoken lines |
-| Raw edits of any file | REDcode's CR2W editor (`redcode.cr2w`) | Opens `.quest`, `.questphase`, `.scene`, not `.journal` | Opens files there through `vscode.openWith`. **Request:** `.journal` too, and the graph editors REDcode once planned for C6 move here |
+| Subtitles, voice-over maps, line lengths | REDbridge `loc.*` | Onscreens only | **Request:** the same for spoken lines ([REDbridge #9](https://github.com/Edgemodders/REDbridge/issues/9)) |
+| Raw edits of any file | REDcode's CR2W editor (`redcode.cr2w`) | Opens `.quest`, `.questphase`, `.scene`, not `.journal` | Opens files there through `vscode.openWith`. **Request:** `.journal` too, and the graph editors REDcode once planned for C6 move here ([REDcode #12](https://github.com/Edgemodders/REDcode/issues/12)) |
 | The project, packing, Pack and Try | REDcode 0.10.2, `REDcodeApi` version 1 (`project`, `pack`, `packAndTry`) | Ready | Calls it |
 | Onscreen texts (LocKeys) | REDcode's LocKeys view, REDbridge `loc.*` | Ready | Uses them |
 | Deploying | EDGEdeck (`EDGEdeckApi` 1, `@edgemodders/edgedeck-mcp`) | Ready | Through REDcode's install or EDGEdeck's API |
-| The running game: facts, the journal, starting a phase, moving V | REDnode | Only the raw `api_call`; `archives_reload` swaps archives live | **Request:** quest calls and MCP tools |
-| Voice for new lines | EDGEwave 0.1.0 | Speak Line (ElevenLabs, opt-in) makes a WAV; no API, no MCP, no `.wem` | **Request:** voice a list of lines, and a `.wem` route. Until then, lines are unvoiced |
-| Places and people: spots, trigger areas, map markers, NPC spawns | EDGEbuilder 0.3.4 | Places meshes, entities and lights with NodeRefs; markers, areas and NPC spawns not planned | **Request:** quest places. Until then, quests use places the game already has |
+| The running game: facts, the journal, starting a phase, moving V | REDnode | Only the raw `api_call`; `archives_reload` swaps archives live | **Request:** quest calls and MCP tools ([REDnode #15](https://github.com/Edgemodders/REDnode/issues/15)) |
+| Voice for new lines | EDGEwave 0.1.0 | Speak Line (ElevenLabs, opt-in) makes a WAV; no API, no MCP, no `.wem` | **Request:** voice a list of lines, and a `.wem` route ([EDGEwave #5](https://github.com/Edgemodders/EDGEwave/issues/5)). Until then, lines are unvoiced |
+| Places and people: spots, trigger areas, map markers, NPC spawns | EDGEbuilder 0.3.4 | Places meshes, entities and lights with NodeRefs; markers, areas and NPC spawns not planned | **Request:** quest places ([EDGEbuilder #3](https://github.com/Edgemodders/EDGEbuilder/issues/3)). Until then, quests use places the game already has |
 | New items as rewards | EDGEfab (design only), TweakXL | | References their records |
 | Shipping to assistants | EDGEchat (the Claude Code plugin), EDGEkit | | Asks to be listed once released |
 
