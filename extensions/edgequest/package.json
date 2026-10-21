@@ -39,7 +39,10 @@
     "onView:edgequest.gameQuests",
     "onCommand:edgequest.setGameFolder",
     "onCommand:edgequest.showLog",
-    "onCommand:edgequest.refresh"
+    "onCommand:edgequest.refresh",
+    "onCommand:edgequest.rebuildIndex",
+    "onCommand:edgequest.find",
+    "onCommand:edgequest.open"
   ],
   "contributes": {
     "viewsContainers": {
@@ -83,6 +86,23 @@
     ],
     "commands": [
       {
+        "command": "edgequest.find",
+        "title": "Find Quest...",
+        "category": "EDGEquest",
+        "icon": "$(search)"
+      },
+      {
+        "command": "edgequest.refresh",
+        "title": "Refresh",
+        "category": "EDGEquest",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "edgequest.rebuildIndex",
+        "title": "Rebuild Quest Index",
+        "category": "EDGEquest"
+      },
+      {
         "command": "edgequest.setGameFolder",
         "title": "Set Game Folder",
         "category": "EDGEquest"
@@ -93,18 +113,33 @@
         "category": "EDGEquest"
       },
       {
-        "command": "edgequest.refresh",
-        "title": "Refresh",
-        "category": "EDGEquest",
-        "icon": "$(refresh)"
+        "command": "edgequest.open",
+        "title": "Open Quest",
+        "category": "EDGEquest"
       }
     ],
     "menus": {
       "view/title": [
         {
+          "command": "edgequest.find",
+          "when": "view == edgequest.gameQuests",
+          "group": "navigation@1"
+        },
+        {
           "command": "edgequest.refresh",
           "when": "view == edgequest.gameQuests",
-          "group": "navigation"
+          "group": "navigation@2"
+        },
+        {
+          "command": "edgequest.rebuildIndex",
+          "when": "view == edgequest.gameQuests",
+          "group": "more"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "edgequest.open",
+          "when": "false"
         }
       ]
     },

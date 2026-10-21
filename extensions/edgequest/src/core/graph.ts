@@ -116,7 +116,10 @@ export function readQuestFile(json: Json): QuestFile {
   return { type: String(root.$type), graph: readGraph(def, handles), prefabs: root.phasePrefabs ?? [], handles };
 }
 
-/** The nodes in reading order: from the graph's inputs and start nodes along the edges, then any not reached. */
+/**
+ * The nodes in reading order: from the graph's inputs and start nodes along the edges, each branch
+ * followed to its end before the next (so a branch reads as one story), then any node not reached.
+ */
 export function flowOrder(graph: QuestGraph): QuestNode[] {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const next = new Map<number, number[]>();
@@ -130,14 +133,15 @@ export function flowOrder(graph: QuestGraph): QuestNode[] {
   const roots = starts.length ? starts : graph.nodes.filter((n) => !incoming.has(n.id));
   const order: QuestNode[] = [];
   const seen = new Set<number>();
-  const queue = roots.map((n) => n.id);
-  while (queue.length) {
-    const id = queue.shift()!;
+  const stack = roots.map((n) => n.id).reverse();
+  while (stack.length) {
+    const id = stack.pop()!;
     if (seen.has(id)) continue;
     seen.add(id);
     const n = byId.get(id);
     if (n) order.push(n);
-    for (const t of next.get(id) ?? []) if (!seen.has(t)) queue.push(t);
+    const targets = (next.get(id) ?? []).filter((t) => !seen.has(t));
+    for (let i = targets.length - 1; i >= 0; i--) stack.push(targets[i]);
   }
   for (const n of graph.nodes) if (!seen.has(n.id)) order.push(n);
   return order;
