@@ -10,8 +10,12 @@ import * as path from "node:path";
 import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
 import { readQuestFile, value, type Json } from "./graph";
+import { murmur3 } from "./write/wk";
 
-export const IndexVersion = 2;
+export const IndexVersion = 3;
+
+/** The game's compiled map marker positions. */
+const MappinsFile = "base\\worlds\\03_night_city\\_compiled\\default\\03_night_city.mappins";
 
 export interface IndexedFile {
   path: string;
@@ -38,6 +42,8 @@ export interface QuestIndex {
   seconds: number;
   files: IndexedFile[];
   journal: Record<string, JournalInfo>;
+  /** Map markers the game has a compiled position for: journal path -> [x, y, z]. */
+  places: Record<string, [number, number, number]>;
   failed: string[];
 }
 
@@ -156,7 +162,22 @@ export async function buildIndex(bridge: BridgeClient, cacheDir: string, progres
   const journal: Record<string, JournalInfo> = {};
   for (const [p, e] of entries) journal[p] = { kind: e.kind, text: e.key ? texts.get(e.key) : undefined };
 
-  const idx: QuestIndex = { version: IndexVersion, key, builtAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), files, journal, failed };
+  progress("Reading map marker positions");
+  const places: Record<string, [number, number, number]> = {};
+  try {
+    // The game keys compiled marker positions by the journal path's Murmur3 hash.
+    const byHash = new Map<number, string>();
+    for (const p of Object.keys(journal)) if (/MapPin|Mappin/.test(journal[p].kind)) byHash.set(murmur3(p), p);
+    const res = JSON.parse((await bridge.toJson(MappinsFile)).json ?? "{}").Data.RootChunk;
+    for (const d of res.cookedData ?? []) {
+      const p = byHash.get(Number(d.journalPathHash));
+      if (p && d.position) places[p] = [d.position.X, d.position.Y, d.position.Z].map((n: number) => Math.round(n * 100) / 100) as [number, number, number];
+    }
+  } catch (e) {
+    failed.push(`map markers: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  const idx: QuestIndex = { version: IndexVersion, key, builtAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), files, journal, places, failed };
   fs.mkdirSync(cacheDir, { recursive: true });
   fs.writeFileSync(indexFile(cacheDir), JSON.stringify(idx));
   return idx;

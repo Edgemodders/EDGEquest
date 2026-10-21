@@ -7,6 +7,8 @@ Every test run on the dev PC, with its result. A test is recorded when it is fir
 | Test | How | Result |
 |---|---|---|
 | Smoke | `npm run smoke`: game and bridge found from the settings; 4,571 quest and phase files listed; the root quest plays `cyberpunk2077.questphase`; `sq030.questphase` reads with its inline phases (480 nodes) and uses facts, journal entries and scenes; it reads in plain words; `sq030_01_dam_meetup.scene` has 59 lines, 13 options in its choices, the player, and text for 50 lines; the quest index matches the game, finds "pyramid song" and says who plays `sq030.questphase`; inline phases do not read as a phase file "0" (added after the hand test) | **2026-10-21: 14 of 14 passed; again with the new check, 15 of 15** |
+| Smoke, writing (Q2) | Also in `npm run smoke`: the index has the game's map marker positions; the New Quest template is made in a throwaway WolvenKit project (6 files, `quest_check` clean); the phase reads back as its steps; the scene reads back with 4 lines and a choice of 2; a made file changed by hand is kept and the other 5 are unchanged | **2026-10-21: 20 of 20 passed** |
+| The Q2 test quest, made and packed | `Projects\EDGEquest_Q2`: `eq_test.quest.yaml` made into 6 files and packed to `tests\eq_test.archive` with its `.xl`; `quest_check` on the archive: 0 errors, 0 warnings | **2026-10-21: passed**; in the game: pending |
 
 ## Census and reader checks (Q1, 2026-10-21)
 

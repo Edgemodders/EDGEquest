@@ -12,6 +12,7 @@ import { summarize } from "./describe";
 import { readQuestFile, value, type Json, type QuestGraph } from "./graph";
 import { readJournal, type QuestIndex } from "./questIndex";
 import { readScene } from "./scene";
+import { fnv1a64 } from "./write/wk";
 
 export type Level = "error" | "warning" | "info";
 
@@ -260,19 +261,23 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
   // the mod's texts: onscreens and subtitles files listed in the .xl, or any localization json in the mod
   const onscreens = new Map<string, { file: string; primary: string; secondary: string }>();
   const subtitles = new Map<string, string>();
+  let onscreenEntries = 0;
   for (const f of jsons) {
     try {
       const d = (await json(f))?.Data?.RootChunk?.root?.Data;
       if (d?.$type === "localizationPersistenceOnScreenEntries") for (const e of d.entries ?? []) {
         const primary = String(e.primaryKey ?? "0"), secondary = String(e.secondaryKey ?? "");
-        onscreens.set(`LocKey#${primary}`, { file: f, primary, secondary });
-        if (secondary) onscreens.set(secondary, { file: f, primary, secondary });
+        const entry = { file: f, primary, secondary };
+        onscreenEntries++;
+        // Primary key 0: ArchiveXL makes the key from the secondary key's FNV1a64 hash.
+        onscreens.set(`LocKey#${primary === "0" && secondary ? fnv1a64(secondary) : primary}`, entry);
+        if (secondary) onscreens.set(secondary, entry);
       } else if (d?.$type === "localizationPersistenceSubtitleEntries") for (const e of d.entries ?? []) subtitles.set(String(e.stringId), f);
     } catch {
       // not a localization file
     }
   }
-  read.onscreens = new Set([...onscreens.values()]).size;
+  read.onscreens = onscreenEntries;
   read.subtitles = subtitles.size;
 
   // texts a mod journal entry uses: in the mod's onscreens, or the game's

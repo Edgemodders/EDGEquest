@@ -12,3 +12,9 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - Find Quest: search the game's quests by in-game title, file name, fact, journal entry, person or place.
 - Check Quest Mod: checks a quest mod's `.archive`, WolvenKit project or extracted files and names what is wrong in plain words.
 - MCP server `edgequest`: `quest_index`, `quest_find`, `quest_describe`, `quest_scene` and `quest_check`.
+- The story file: a quest in words (`<id>.quest.yaml`) with its objectives, places, steps and scenes. EDGEquest makes the quest's game files from it in a WolvenKit project: the phase, the journal, the scenes, the text files and the `.archive.xl`, checked with `quest_check`. A made file you changed by hand is kept, not overwritten.
+- Places can be a world position or any map marker the game already has; the quest index now knows 4,266 of them by name.
+
+**Fixed**
+
+- Check Quest Mod counted one onscreen text too many when texts use only a string key.
