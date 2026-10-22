@@ -4,8 +4,8 @@
 
 import type { Json } from "../graph";
 import type { Story } from "../story";
-import { Instances, cname, handle, Handle, resource } from "./wk";
-import { Layout, QuestFileEntryIndex, SceneEntry, SceneExit } from "./layout";
+import { Instances, cname, entityRef, handle, Handle, resource } from "./wk";
+import { Layout, PlaceLookup, QuestFileEntryIndex, SceneEntry, SceneExit } from "./layout";
 
 type SocketKind = "Input" | "Output" | "CutDestination";
 
@@ -52,7 +52,7 @@ export interface PhaseProblem {
   message: string;
 }
 
-export async function writePhase(story: Story, files: Layout, inst: Instances): Promise<{ root: Json; problems: PhaseProblem[] }> {
+export async function writePhase(story: Story, files: Layout, inst: Instances, place: PlaceLookup): Promise<{ root: Json; problems: PhaseProblem[] }> {
   const g = new GraphBuilder(inst);
   const problems: PhaseProblem[] = [];
   const input = await g.node("questInputNodeDefinition", { socketName: cname("In1") }, [], ["Out"]);
@@ -66,7 +66,7 @@ export async function writePhase(story: Story, files: Layout, inst: Instances): 
       type: handle(await inst.make("questJournalQuestEntry_NodeType", { path: journalPath(realPath, className), sendNotification: 1, trackQuest: track ? 1 : 0, optional: 0, version: "Initial" })),
     }, ["Active", "Inactive", "Succeeded", "Failed"], ["Out"]).then((b) => ({ b, state }));
 
-  let current: { oid: string; marker?: string } | undefined;
+  let current: { oid: string } | undefined;
   let first = true;
   for (const [i, s] of story.steps.entries()) {
     switch (s.kind) {
@@ -82,17 +82,21 @@ export async function writePhase(story: Story, files: Layout, inst: Instances): 
           await chain(d.b, "Active");
         }
         first = false;
-        current = { oid: s.id, marker: s.marker };
+        current = { oid: s.id };
         break;
       }
       case "arrive": {
-        if (!current || current.marker !== s.place) {
-          problems.push({ step: i + 1, message: `arrive: ${s.place} needs the objective before it to have marker: ${s.place}. V arrives at the objective's map marker.` });
+        // V within so many metres of the place's world node: the game's own arrival check (2,130 uses).
+        // The GPS distance to a marker did not fire in the in-game test of 2026-10-22.
+        const at = place(s.place);
+        if (!at) {
+          problems.push({ step: i + 1, message: `arrive: ${s.place} is not a game map marker the quest index knows, so there is nothing to arrive at.` });
           break;
         }
-        const type = handle(await inst.make("questMappinGPSComparison_ConditionType", {
+        const player = handle(await inst.make("questUniversalRef", { entityReference: entityRef(""), refLocalPlayer: 1, mainPlayerObject: 0 }));
+        const type = handle(await inst.make("questDistanceComparison_ConditionType", {
           comparisonType: "LessOrEqual",
-          distanceDefinition1: handle(await inst.make("questMappinGPSDistance", { mappinPath: journalPath(files.marker(current.oid), "gameJournalQuestMapPin") })),
+          distanceDefinition1: handle(await inst.make("questObjectDistance", { entityRef: player, nodeRef2: entityRef(at.node) })),
           distanceDefinition2: handle(await inst.make("questValueDistance", { distanceValue: s.within })),
         }));
         const cond = handle(await inst.make("questDistanceCondition", { type }));

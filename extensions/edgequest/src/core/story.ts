@@ -8,11 +8,11 @@
 //   type: side
 //   description: Someone left a shard at the overlook.
 //   places:
-//     overlook: { at: [-1542, 1203, 58.5] }
+//     home: { marker: quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment }
 //   steps:
-//     - objective: Go to the overlook
-//       marker: overlook
-//     - arrive: overlook
+//     - objective: Go home
+//       marker: home
+//     - arrive: home
 //     - scene: thoughts
 //     - done
 //   scenes:
@@ -28,11 +28,12 @@ export type QuestType = "side" | "minor";
 
 export interface Place {
   name: string;
-  /** World position, x y z in metres. */
-  at?: [number, number, number];
-  /** A game map marker's journal path; its compiled position is used. */
-  marker?: string;
+  /** A game map marker's journal path. The quest's marker and arrival use the world node it stands on. */
+  marker: string;
 }
+
+/** The default place of a new quest: the map marker at V's apartment door in Megabuilding H10. */
+export const DefaultPlaceMarker = "quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment";
 
 export type StoryStep =
   | { kind: "objective"; id: string; text: string; marker?: string }
@@ -118,13 +119,13 @@ export function readStory(text: string): StoryRead {
   // Places.
   const places = new Map<string, Place>();
   const rawPlaces = (raw.places ?? {}) as Record<string, unknown>;
-  if (typeof rawPlaces !== "object" || Array.isArray(rawPlaces)) add(["places"], "places", "places is a list of names, each with at: [x, y, z] or marker: <a game map marker>.");
+  if (typeof rawPlaces !== "object" || Array.isArray(rawPlaces)) add(["places"], "places", "places is a list of names, each with marker: <a game map marker>.");
   else for (const [name, v] of Object.entries(rawPlaces)) {
     const p = (v ?? {}) as Record<string, unknown>;
-    const at = p.at;
-    if (Array.isArray(at) && at.length === 3 && at.every((n) => typeof n === "number")) places.set(name, { name, at: at as [number, number, number] });
-    else if (typeof p.marker === "string") places.set(name, { name, marker: p.marker });
-    else add(["places", name], `places ${name}`, `The place "${name}" needs at: [x, y, z] (a world position) or marker: <a game map marker's journal path>.`);
+    if (typeof p.marker === "string" && p.marker.trim()) places.set(name, { name, marker: p.marker.trim() });
+    // A bare world position does not work in the game: a quest's marker and arrival need a world node (in-game test 2026-10-22).
+    else if (p.at !== undefined) add(["places", name, "at"], `places ${name}`, `The place "${name}" has at: [x, y, z], which the game cannot use yet: a quest's map marker and arrival need a world node. Use marker: <a game map marker's journal path> near where you want it (Find Quest finds them).`);
+    else add(["places", name], `places ${name}`, `The place "${name}" needs marker: <a game map marker's journal path>, for example ${DefaultPlaceMarker} (V's apartment door).`);
   }
 
   // Scenes (read before steps so steps can refer to them).
@@ -234,9 +235,9 @@ function readFact(v: unknown): { fact: string; value: number; add: boolean } | u
 }
 
 /** A new story file's text: the template New Quest starts from. */
-export function storyTemplate(o: { title: string; id: string; author: string; type?: QuestType; objective?: string; place?: [number, number, number]; placeName?: string }): string {
+export function storyTemplate(o: { title: string; id: string; author: string; type?: QuestType; objective?: string; place?: string; placeName?: string }): string {
   const place = o.placeName || "spot";
-  const at = o.place ? `[${o.place.join(", ")}]` : "[0, 0, 0]   # a world position: x, y, z";
+  const marker = o.place || `${DefaultPlaceMarker}   # V's apartment door; any game map marker works`;
   return `# EDGEquest story file. EDGEquest makes the game files from it: edit this file, not those.
 quest: ${o.title}
 id: ${o.id}
@@ -246,7 +247,7 @@ description: What the journal says about this quest.
 
 places:
   ${place}:
-    at: ${at}
+    marker: ${marker}
 
 steps:
   - objective: ${o.objective || "Go to the place"}

@@ -1,7 +1,11 @@
 // Where a story's files go and what its journal entries and texts are called. One place, so the phase,
 // journal, scenes, texts and .xl agree.
 
+import type { IndexedPlace } from "../questIndex";
 import type { Story } from "../story";
+
+/** A story place's game map marker, looked up in the quest index by the caller. */
+export type PlaceLookup = (place: string) => IndexedPlace | undefined;
 
 export interface Layout {
   /** The mod's folder inside the archive: mod\<author>\<id>. */
@@ -10,7 +14,10 @@ export interface Layout {
   journal: string;
   scene(name: string): string;
   onscreens(lang: string): string;
-  subtitles(lang: string): string;
+  /** The subtitle map the .xl lists: it names one subtitle file per scene. */
+  subtitleMap(lang: string): string;
+  /** A scene's lines, named after the scene like the game's own subtitle files. */
+  subtitles(lang: string, scene: string): string;
   /** The .xl file name, in the project's resources folder. */
   xl: string;
   journalFolder: string;
@@ -33,7 +40,8 @@ export function layout(story: Pick<Story, "id" | "author" | "type">): Layout {
     journal: `${folder}\\${story.id}.journal`,
     scene: (name) => `${folder}\\scenes\\${name}.scene`,
     onscreens: (lang) => `${folder}\\loc\\${lang}\\onscreens.json`,
-    subtitles: (lang) => `${folder}\\loc\\${lang}\\subtitles.json`,
+    subtitleMap: (lang) => `${folder}\\loc\\${lang}\\subtitlemap.json`,
+    subtitles: (lang, scene) => `${folder}\\loc\\${lang}\\subtitles\\${scene}.json`,
     xl: `${story.id}.archive.xl`,
     journalFolder,
     quest,

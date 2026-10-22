@@ -62,7 +62,9 @@ try {
     check(hits.some((h) => h.file.path.includes("sq030")), "find \"pyramid song\" finds sq030", `${hits.length} hits`);
     const parents = core.usedBy(idx, "base\\quest\\side_quests\\sq030\\phases\\sq030.questphase");
     check(parents.length > 0, "sq030.questphase is played by another file", parents.map((p) => p.path).join(", "));
-    check(Object.keys(idx.places ?? {}).length > 4000, "the index knows the game's map marker positions", `${Object.keys(idx.places ?? {}).length}`);
+    const door = idx.places?.[core.DefaultPlaceMarker];
+    check(Object.keys(idx.places ?? {}).length > 3000 && door?.node === "#mq055_mp_megabuilding_apartment", "the index knows the game's map markers and their world nodes",
+      `${Object.keys(idx.places ?? {}).length}; V's door: ${door?.node} at ${door?.at}`);
   }
 
   // Writing: the New Quest template, made in a throwaway WolvenKit project, read back.
@@ -70,21 +72,26 @@ try {
   try {
     fs.writeFileSync(path.join(proj, "smoke.cpmodproj"), "<CP77Mod><Name>smoke</Name></CP77Mod>");
     const storyFile = path.join(proj, "smoke_test.quest.yaml");
-    fs.writeFileSync(storyFile, core.storyTemplate({ title: "Smoke Test", id: "smoke_test", author: "edgequest", place: [-1382.88, 1270.62, 123.06] }));
+    fs.writeFileSync(storyFile, core.storyTemplate({ title: "Smoke Test", id: "smoke_test", author: "edgequest" }));
     const made = await core.makeQuest(proj, storyFile, bridge, { index: idx });
     const errors = made.findings.filter((f) => f.level !== "info");
-    check(!made.problems.length && made.files.filter((f) => f.result === "written").length === 6 && !errors.length, "the template makes 6 files that pass quest_check",
+    check(!made.problems.length && made.files.filter((f) => f.result === "written").length === 7 && !errors.length, "the template makes 7 files that pass quest_check",
       [...made.problems.map((p) => p.message), ...errors.map((f) => f.message)].join("; ") || made.files.map((f) => f.file.split("/").pop()).join(", "));
     const archive = path.join(proj, "source", "archive", "mod", "edgequest", "smoke_test");
     const phase = core.readQuestFile(JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.questphase"))).json));
     const words = core.questMarkdown("smoke", phase);
-    check(/Wait until GPS distance/.test(words) && /Scene arrival/.test(words) && /quest quests\/side_quest\/smoke_test becomes succeeded/.test(words), "the made phase reads back as its steps");
+    check(/Wait until distance from V to #mq055_mp_megabuilding_apartment ≤ 10 m/.test(words) && /Scene arrival/.test(words) && /quest quests\/side_quest\/smoke_test becomes succeeded/.test(words), "the made phase reads back as its steps",
+      words.split("\n").find((l) => /Wait until/.test(l)) ?? "");
+    const journal = JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.journal"))).json);
+    check(JSON.stringify(journal).includes("#mq055_mp_megabuilding_apartment"), "the made marker stands on the game marker's world node");
     const scene = core.readScene(JSON.parse((await bridge.fileToJson(path.join(archive, "scenes", "arrival.scene"))).json));
     check(scene.lines.length === 4 && scene.options.length === 2 && scene.lines.every((l) => l.text), "the made scene reads back with its lines and choice", `${scene.lines.length} lines, ${scene.options.length} options`);
+    const map = JSON.parse((await bridge.fileToJson(path.join(archive, "loc", "en-us", "subtitlemap.json"))).json).Data.RootChunk.root.Data;
+    check(map.$type === "localizationPersistenceSubtitleMap" && map.entries.length === 1, "the .xl's subtitles entry is a subtitle map naming the scene's lines", map.$type);
     fs.appendFileSync(path.join(archive, "smoke_test.journal"), Buffer.from([0]));
     const again = await core.makeQuest(proj, storyFile, bridge, { index: idx, noCheck: true });
     const kept = again.files.find((f) => f.file.endsWith(".journal"))?.result;
-    check(kept === "kept" && again.files.filter((f) => f.result === "unchanged").length === 5, "a made file changed by hand is kept, the rest are unchanged", again.files.map((f) => f.result).join(", "));
+    check(kept === "kept" && again.files.filter((f) => f.result === "unchanged").length === 6, "a made file changed by hand is kept, the rest are unchanged", again.files.map((f) => f.result).join(", "));
   } finally {
     fs.rmSync(proj, { recursive: true, force: true });
   }

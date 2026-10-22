@@ -12,7 +12,7 @@ import { summarize } from "./describe";
 import { readQuestFile, value, type Json } from "./graph";
 import { murmur3 } from "./write/wk";
 
-export const IndexVersion = 3;
+export const IndexVersion = 4;
 
 /** The game's compiled map marker positions. */
 const MappinsFile = "base\\worlds\\03_night_city\\_compiled\\default\\03_night_city.mappins";
@@ -35,6 +35,26 @@ export interface JournalInfo {
   text?: string;
 }
 
+/** A game map marker: where it shows, and the world node it stands on (a quest can use both). */
+export interface IndexedPlace {
+  /** The compiled world position [x, y, z]. */
+  at: [number, number, number];
+  /** The marker's NodeRef: a name ("#mq055_mp_...") or, when the name is not known, its hash. */
+  node: string;
+  /** The marker's offset from the node. */
+  offset: [number, number, number];
+}
+
+/** A journal entry as the index reads it. A quest map pin on a world node also has its node and offset. */
+export interface JournalRead {
+  kind: string;
+  key?: string;
+  node?: string;
+  offset?: [number, number, number];
+  /** A quest map pin with neither a world node nor a dynamic entity: nothing places it. */
+  unplaced?: boolean;
+}
+
 export interface QuestIndex {
   version: number;
   key: string;
@@ -42,8 +62,8 @@ export interface QuestIndex {
   seconds: number;
   files: IndexedFile[];
   journal: Record<string, JournalInfo>;
-  /** Map markers the game has a compiled position for: journal path -> [x, y, z]. */
-  places: Record<string, [number, number, number]>;
+  /** Map markers on a world node that the game has a compiled position for, by journal path. */
+  places: Record<string, IndexedPlace>;
   failed: string[];
 }
 
@@ -84,7 +104,7 @@ export async function listGameFiles(bridge: BridgeClient, ...exts: string[]): Pr
 const JournalText = ["title", "description", "name"];
 
 /** Every journal entry by path ("quests/main_quest/...") with its kind and LocKey, from one .journal's JSON. */
-export function readJournal(json: Json, into: Map<string, { kind: string; key?: string }>): void {
+export function readJournal(json: Json, into: Map<string, JournalRead>): void {
   const root = json?.Data?.RootChunk?.entry ?? json?.entry;
   const walk = (x: Json, prefix: string) => {
     const d = x?.Data;
@@ -97,7 +117,16 @@ export function readJournal(json: Json, into: Map<string, { kind: string; key?: 
         const v = d[f]?.value ?? value(d[f]);
         if (typeof v === "string" && v && v !== "None") { key = v; break; }
       }
-      if (!into.has(p) || key) into.set(p, { kind: String(d.$type).replace(/^gameJournal/, ""), key });
+      if (!into.has(p) || key) {
+        const e: JournalRead = { kind: String(d.$type).replace(/^gameJournal/, ""), key };
+        const ref = d.$type === "gameJournalQuestMapPin" ? String(d.reference?.reference?.$value ?? "0") : "0";
+        const dynamic = value(d.reference?.dynamicEntityUniqueName);
+        if (ref !== "0" && (!dynamic || dynamic === "None")) {
+          e.node = ref;
+          e.offset = [Number(d.offset?.X ?? 0), Number(d.offset?.Y ?? 0), Number(d.offset?.Z ?? 0)];
+        } else if (d.$type === "gameJournalQuestMapPin" && (!dynamic || dynamic === "None")) e.unplaced = true;
+        into.set(p, e);
+      }
     }
     for (const c of d.entries ?? []) walk(c, p);
   };
@@ -139,7 +168,7 @@ export async function buildIndex(bridge: BridgeClient, cacheDir: string, progres
   }
 
   progress("Reading the journal");
-  const entries = new Map<string, { kind: string; key?: string }>();
+  const entries = new Map<string, JournalRead>();
   for (const p of await listGameFiles(bridge, ".journal")) {
     try {
       readJournal(JSON.parse((await bridge.toJson(p)).json ?? "null"), entries);
@@ -163,15 +192,17 @@ export async function buildIndex(bridge: BridgeClient, cacheDir: string, progres
   for (const [p, e] of entries) journal[p] = { kind: e.kind, text: e.key ? texts.get(e.key) : undefined };
 
   progress("Reading map marker positions");
-  const places: Record<string, [number, number, number]> = {};
+  const places: Record<string, IndexedPlace> = {};
   try {
-    // The game keys compiled marker positions by the journal path's Murmur3 hash.
+    // The game keys compiled marker positions by the journal path's Murmur3 hash. Only markers on a world
+    // node are kept: a new quest's marker and arrival use the same node (see docs/design/formats.md).
     const byHash = new Map<number, string>();
-    for (const p of Object.keys(journal)) if (/MapPin|Mappin/.test(journal[p].kind)) byHash.set(murmur3(p), p);
+    for (const [p, e] of entries) if (e.node) byHash.set(murmur3(p), p);
     const res = JSON.parse((await bridge.toJson(MappinsFile)).json ?? "{}").Data.RootChunk;
     for (const d of res.cookedData ?? []) {
       const p = byHash.get(Number(d.journalPathHash));
-      if (p && d.position) places[p] = [d.position.X, d.position.Y, d.position.Z].map((n: number) => Math.round(n * 100) / 100) as [number, number, number];
+      const e = p ? entries.get(p) : undefined;
+      if (p && e?.node && d.position) places[p] = { at: [d.position.X, d.position.Y, d.position.Z].map((n: number) => Math.round(n * 100) / 100) as [number, number, number], node: e.node, offset: e.offset ?? [0, 0, 0] };
     }
   } catch (e) {
     failed.push(`map markers: ${e instanceof Error ? e.message : String(e)}`);

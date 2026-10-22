@@ -13,8 +13,14 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - Check Quest Mod: checks a quest mod's `.archive`, WolvenKit project or extracted files and names what is wrong in plain words.
 - MCP server `edgequest`: `quest_index`, `quest_find`, `quest_describe`, `quest_scene` and `quest_check`.
 - The story file: a quest in words (`<id>.quest.yaml`) with its objectives, places, steps and scenes. EDGEquest makes the quest's game files from it in a WolvenKit project: the phase, the journal, the scenes, the text files and the `.archive.xl`, checked with `quest_check`. A made file you changed by hand is kept, not overwritten.
-- Places can be a world position or any map marker the game already has; the quest index now knows 4,266 of them by name.
+- Places are map markers the game already has; the quest index now knows 4,266 of them by name, with the world spot each stands on. A new quest's marker stands on the same spot, and "arrive" waits until V is within that many metres of it.
+- Making a quest again removes the files it made before and no longer needs, unless you changed them by hand.
+- Check Quest Mod finds a subtitles entry in the `.xl` that is not a subtitle map, subtitle files nothing loads, and map markers that would show at the world's origin.
+- The quest page says who and what a distance check measures between.
 
 **Fixed**
+
+- A made quest's map marker showed far away at the world's origin: it now stands on the place's world spot.
+- A made quest's scene lines had no text: the `.xl` now lists a subtitle map, which names one subtitle file per scene.
 
 - Check Quest Mod counted one onscreen text too many when texts use only a string key.

@@ -44,7 +44,10 @@ export function cr2wJson(root: Json): Json {
 // ---- small values -------------------------------------------------------------------------------
 
 export const cname = (s: string): Json => ({ $type: "CName", $storage: "string", $value: s || "None" });
-export const nodeRef = (s: string): Json => (s ? { $type: "NodeRef", $storage: "string", $value: s } : { $type: "NodeRef", $storage: "uint64", $value: "0" });
+/** A NodeRef by name ("#name"), or by hash when only the hash is known (digits). */
+export const nodeRef = (s: string): Json => (s && !/^\d+$/.test(s) ? { $type: "NodeRef", $storage: "string", $value: s } : { $type: "NodeRef", $storage: "uint64", $value: s || "0" });
+/** A gameEntityReference to a world node. */
+export const entityRef = (node: string): Json => ({ $type: "gameEntityReference", dynamicEntityUniqueName: cname(""), names: [], reference: nodeRef(node), sceneActorContextName: cname(""), slotName: cname(""), type: "EntityRef" });
 export const tweakId = (s: string): Json => (s ? { $type: "TweakDBID", $storage: "string", $value: s } : { $type: "TweakDBID", $storage: "uint64", $value: "0" });
 export const resource = (path: string, flags: "Soft" | "Default" = "Soft"): Json =>
   path ? { DepotPath: { $type: "ResourcePath", $storage: "string", $value: path }, Flags: flags } : { DepotPath: { $type: "ResourcePath", $storage: "uint64", $value: "0" }, Flags: "Default" };

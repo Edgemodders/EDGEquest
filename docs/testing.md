@@ -7,8 +7,15 @@ Every test run on the dev PC, with its result. A test is recorded when it is fir
 | Test | How | Result |
 |---|---|---|
 | Smoke | `npm run smoke`: game and bridge found from the settings; 4,571 quest and phase files listed; the root quest plays `cyberpunk2077.questphase`; `sq030.questphase` reads with its inline phases (480 nodes) and uses facts, journal entries and scenes; it reads in plain words; `sq030_01_dam_meetup.scene` has 59 lines, 13 options in its choices, the player, and text for 50 lines; the quest index matches the game, finds "pyramid song" and says who plays `sq030.questphase`; inline phases do not read as a phase file "0" (added after the hand test) | **2026-10-21: 14 of 14 passed; again with the new check, 15 of 15** |
-| Smoke, writing (Q2) | Also in `npm run smoke`: the index has the game's map marker positions; the New Quest template is made in a throwaway WolvenKit project (6 files, `quest_check` clean); the phase reads back as its steps; the scene reads back with 4 lines and a choice of 2; a made file changed by hand is kept and the other 5 are unchanged | **2026-10-21: 20 of 20 passed** |
-| The Q2 test quest, made and packed | `Projects\EDGEquest_Q2`: `eq_test.quest.yaml` made into 6 files and packed to `tests\eq_test.archive` with its `.xl`; `quest_check` on the archive: 0 errors, 0 warnings | **2026-10-21: passed**; in the game: pending |
+| Smoke, writing (Q2) | Also in `npm run smoke`: the index has the game's map markers with their world nodes (V's door: `#mq055_mp_megabuilding_apartment`); the New Quest template is made in a throwaway WolvenKit project (7 files, `quest_check` clean); the phase reads back as its steps, arrival measured from V to the door's node; the marker stands on that node; the scene reads back with 4 lines and a choice of 2; the `.xl`'s subtitles entry is a subtitle map; a made file changed by hand is kept and the other 6 are unchanged | **2026-10-21: 20 of 20 passed. 2026-10-22, after in-game test 1: 22 of 22** |
+| The Q2 test quest, made and packed | `Projects\EDGEquest_Q2`: `eq_test.quest.yaml` made and packed to `tests\eq_test.archive` with its `.xl`; `quest_check` on the archive | **2026-10-21: 6 files, 0 errors, 0 warnings. 2026-10-22, remade after test 1: 7 files, 0 errors, 0 warnings** (the new checks find 1 error and 1 warning in the test 1 archive) |
+
+## In the game (Q2)
+
+| Test | What happened | Result |
+|---|---|---|
+| Test 1, 2026-10-22 (ArchiveXL 1.27.4, on the owner's laptop) | The quest showed in the tracker and the journal. The marker showed far away, labelled "shooting range", with a GPS route to it; reaching it did nothing, nor did V's apartment. ArchiveXL's log: the phase, journal and onscreens merged; `subtitles.json` "failed to load"; no line about our marker's position. Causes: a marker with no NodeRef sits at the world's origin, since the game never asks ArchiveXL where it is; the `.xl` listed a file of lines where ArchiveXL expects a subtitle map. Whether GPS arrival would fire at 10 m stays unknown. Fixed: the marker and arrival use the game marker's world node; a subtitle map names one file of lines per scene; `quest_check` finds both faults | **Failed; fixed and remade** |
+| Test 2 | The remade archive: marker at V's door, arrival within 10 m of it, the scene's lines showing | Pending |
 
 ## Census and reader checks (Q1, 2026-10-21)
 

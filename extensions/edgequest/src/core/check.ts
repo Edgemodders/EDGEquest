@@ -10,7 +10,7 @@ import { parse as parseYaml } from "yaml";
 import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
 import { readQuestFile, value, type Json, type QuestGraph } from "./graph";
-import { readJournal, type QuestIndex } from "./questIndex";
+import { readJournal, type JournalRead, type QuestIndex } from "./questIndex";
 import { readScene } from "./scene";
 import { fnv1a64 } from "./write/wk";
 
@@ -245,7 +245,7 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
   }
 
   // 5. The mod's journal: its root, its entries and their texts.
-  const modJournal = new Map<string, { kind: string; key?: string }>();
+  const modJournal = new Map<string, JournalRead>();
   for (const j of journals) {
     try {
       const jj = await json(j);
@@ -257,14 +257,20 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
     }
   }
   read.journalEntries = modJournal.size;
+  const unplaced = [...modJournal].filter(([, e]) => e.unplaced).map(([p]) => p);
+  if (unplaced.length) add("warning", "marker-no-node", `${unplaced.length} map marker${unplaced.length === 1 ? " has" : "s have"} no world node (${unplaced.slice(0, 3).join(", ")}${unplaced.length > 3 ? "…" : ""}). The game does not ask ArchiveXL where such a marker is, so it shows at the world's origin (0, 0, 0), far from where it should be. Put it on a world node: a game map marker's NodeRef, with an offset if needed.`);
 
   // the mod's texts: onscreens and subtitles files listed in the .xl, or any localization json in the mod
   const onscreens = new Map<string, { file: string; primary: string; secondary: string }>();
   const subtitles = new Map<string, string>();
+  const subtitleFiles = new Set<string>();
+  const subtitleMaps = new Map<string, string[]>(); // map file -> the subtitle files it names
   let onscreenEntries = 0;
   for (const f of jsons) {
     try {
       const d = (await json(f))?.Data?.RootChunk?.root?.Data;
+      if (d?.$type === "localizationPersistenceSubtitleEntries") subtitleFiles.add(key(f));
+      if (d?.$type === "localizationPersistenceSubtitleMap") subtitleMaps.set(f, (d.entries ?? []).map((e: Json) => String(value(e.subtitleFile) ?? "")).filter((p: string) => p));
       if (d?.$type === "localizationPersistenceOnScreenEntries") for (const e of d.entries ?? []) {
         const primary = String(e.primaryKey ?? "0"), secondary = String(e.secondaryKey ?? "");
         const entry = { file: f, primary, secondary };
@@ -279,6 +285,21 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
   }
   read.onscreens = onscreenEntries;
   read.subtitles = subtitles.size;
+
+  // subtitles: ArchiveXL loads each .xl subtitles entry as a map of subtitle files, the way the game's
+  // own subtitles.json is; a file of lines listed there directly fails to load (in-game test 2026-10-22).
+  for (const l of xl.localization.filter((x) => x.kind === "subtitles" && has(x.path))) {
+    if (subtitleFiles.has(key(l.path))) add("error", "subtitles-not-map", `The .xl lists ${l.path} under subtitles, but it is a file of lines. ArchiveXL expects a subtitle map there (localizationPersistenceSubtitleMap) naming the files of lines, so it fails to load and the lines show no text.`, l.path);
+  }
+  const listed = new Set<string>();
+  for (const [m, targets] of subtitleMaps) {
+    for (const t of targets) {
+      listed.add(key(t));
+      if (!(await exists(t))) add("error", "missing-file", `The subtitle map ${m} names ${t}, which is not in the mod${bridge ? " or the game" : ""}.`, m);
+    }
+    if (!xl.localization.some((x) => x.kind === "subtitles" && key(x.path) === key(m))) add("warning", "subtitles-not-loaded", `${m} is a subtitle map, but no .xl lists it under localization: subtitles:, so its lines show no text.`, m);
+  }
+  for (const f of subtitleFiles) if (!listed.has(f) && !xl.localization.some((x) => x.kind === "subtitles" && key(x.path) === f)) add("warning", "subtitles-not-loaded", `${[...mod.files.keys()].find((k) => key(k) === f)} has subtitle lines, but no subtitle map names it, so they show no text.`);
 
   // texts a mod journal entry uses: in the mod's onscreens, or the game's
   const missingKeys: string[] = [];

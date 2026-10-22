@@ -12,18 +12,19 @@ import { checkQuestMod, modFromFolder, type Finding } from "../check";
 import type { Json } from "../graph";
 import type { QuestIndex } from "../questIndex";
 import { readStory, type Story, type StoryProblem } from "../story";
-import { writeJournal, type PlacePosition } from "./journal";
-import { layout, type Layout } from "./layout";
+import { writeJournal } from "./journal";
+import { layout, type Layout, type PlaceLookup } from "./layout";
 import { writePhase } from "./phase";
-import { writeScene, type SceneText } from "./scene";
-import { writeOnscreens, writeSubtitles } from "./texts";
+import { writeScene } from "./scene";
+import { writeOnscreens, writeSubtitleMap, writeSubtitles } from "./texts";
 import { Instances, cr2wJson } from "./wk";
 
 export interface MadeFile {
   /** Path in the project, with forward slashes: source/archive/mod/... or source/resources/... */
   file: string;
-  /** What happened: written, unchanged, or kept because it was changed by hand. */
-  result: "written" | "unchanged" | "kept";
+  /** What happened: written, unchanged, kept because it was changed by hand, or removed because the
+   *  story no longer makes it. */
+  result: "written" | "unchanged" | "kept" | "removed";
 }
 
 export interface MakeResult {
@@ -36,7 +37,7 @@ export interface MakeResult {
 export interface MakeOptions {
   /** Overwrite made files changed by hand. */
   force?: boolean;
-  /** The quest index: game map marker positions for places named by marker. */
+  /** The quest index: the game map markers (and their world nodes) places are named by. */
   index?: QuestIndex;
   /** Skip quest_check (tests). */
   noCheck?: boolean;
@@ -59,7 +60,7 @@ localization:
   onscreens:
     en-us: ${files.onscreens("en-us")}
   subtitles:
-    en-us: ${files.subtitles("en-us")}
+    en-us: ${files.subtitleMap("en-us")}
 `;
 }
 
@@ -77,25 +78,24 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
   const files = layout(story);
   const inst = Instances.fromBridge(bridge);
 
-  const position: PlacePosition = (name) => {
+  const place: PlaceLookup = (name) => {
     const p = story.places.get(name);
-    if (p?.at) return p.at;
-    if (p?.marker) return options.index?.places?.[p.marker];
-    return undefined;
+    return p ? options.index?.places?.[p.marker] : undefined;
   };
+  if (story.places.size && !options.index) result.problems.push({ at: "places", message: "Places are game map markers, found in the quest index, which is not built yet. Build it first (Game Quests view, or the MCP tool quest_index)." });
 
   // Build everything in memory first, so a problem stops before any file is touched.
-  const phase = await writePhase(story, files, inst);
+  const phase = await writePhase(story, files, inst, place);
   for (const p of phase.problems) result.problems.push({ at: `steps ${p.step}`, message: p.message });
-  const journal = await writeJournal(story, files, inst, position);
+  const journal = await writeJournal(story, files, inst, place);
   for (const m of journal.problems) result.problems.push({ at: "places", message: m });
-  const sceneTexts: SceneText[] = [];
   const scenes: [string, Json][] = [];
+  const subtitles: [string, Json][] = [];
   for (const spec of story.scenes.values()) {
     const s = await writeScene(story, spec, inst);
     for (const m of s.problems) result.problems.push({ at: `scenes ${spec.name}`, message: m });
-    sceneTexts.push(...s.texts);
     scenes.push([files.scene(spec.name), s.root]);
+    subtitles.push([files.subtitles("en-us", spec.name), await writeSubtitles(s.texts, inst)]);
   }
   for (const name of story.scenes.keys()) if (!story.steps.some((s) => s.kind === "scene" && s.scene === name)) result.problems.push({ at: `scenes ${name}`, message: `The scene "${name}" is never played: no step says scene: ${name}.` });
   if (result.problems.length) return result;
@@ -105,7 +105,8 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
     [files.journal, journal.root],
     ...scenes,
     [files.onscreens("en-us"), await writeOnscreens(journal.texts, inst)],
-    [files.subtitles("en-us"), await writeSubtitles(sceneTexts, inst)],
+    ...subtitles,
+    [files.subtitleMap("en-us"), await writeSubtitleMap(subtitles.map(([p]) => p), inst)],
   ];
 
   // Turn the JSON into game files in a temp folder, then compare with what is in the project.
@@ -135,6 +136,18 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
     fs.writeFileSync(disk, f.bytes);
     made[f.rel] = next;
     result.files.push({ file: f.rel, result: "written" });
+  }
+  // Files an earlier make wrote that this one does not (a scene renamed, an older layout): removed when
+  // untouched since, kept when changed by hand.
+  for (const rel of Object.keys(made)) {
+    if (out.some((f) => f.rel === rel)) continue;
+    const disk = path.join(project, rel);
+    if (!fs.existsSync(disk)) { delete made[rel]; continue; }
+    if (sha1(fs.readFileSync(disk)) === made[rel] || options.force) {
+      fs.rmSync(disk);
+      delete made[rel];
+      result.files.push({ file: rel, result: "removed" });
+    } else { kept.push(rel); result.files.push({ file: rel, result: "kept" }); }
   }
   fs.mkdirSync(path.dirname(mf), { recursive: true });
   fs.writeFileSync(mf, JSON.stringify({ story: path.relative(project, storyFile).replace(/\\/g, "/"), madeAt: new Date().toISOString(), files: made }, null, 2));

@@ -169,8 +169,11 @@ export function describeCondition(c: Json, h: Handles, facts: FactUse[] = [], jr
       const known = state && state !== "Undefined";
       return `the journal ${what} ${flag(t.inverted, false) ? "is not" : "is"} ${known ? state.toLowerCase().replace(/_$/, "") : "there"}`;
     }
-    case "questDistanceComparison_ConditionType":
-      return `distance ${cmp(t.comparisonType)} ${num(deref(t.distanceDefinition2, h)?.distanceValue, 0)} m`;
+    case "questDistanceComparison_ConditionType": {
+      const d1 = deref(t.distanceDefinition1, h);
+      const between = d1?.$type === "questObjectDistance" ? ` from ${who(d1.entityRef, refs, h)} to ${who(d1.nodeRef2, refs, h)}` : "";
+      return `distance${between} ${cmp(t.comparisonType)} ${num(deref(t.distanceDefinition2, h)?.distanceValue, 0)} m`;
+    }
     case "questMappinGPSComparison_ConditionType":
       return `GPS distance to ${journal(deref(t.distanceDefinition1, h)?.mappinPath, h, jr)} ${cmp(t.comparisonType)} ${num(deref(t.distanceDefinition2, h)?.distanceValue, 0)} m`;
     case "questCharacterMount_ConditionType":
