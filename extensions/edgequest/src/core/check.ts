@@ -364,6 +364,16 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
       const stored = new Set<string>((root.locStore?.vdEntries ?? []).map((d: Json) => String(d.locstringId?.ruid)));
       const leftover = [...stored].filter((id) => !usedIds.has(id)).length;
       if (leftover) add("warning", "scene-leftovers", `${sc} keeps ${leftover} embedded text${leftover === 1 ? "" : "s"} that no line or option uses, probably left from a copied game scene. Harmless in the game, but it ships game text in the mod.`, sc);
+      // the game finds a line or option by its id, which is its place in the list: line k is k*256+1, option k is k*256+2
+      const store = root.screenplayStore ?? {};
+      const misplaced = [
+        ...(store.lines ?? []).filter((l: Json, k: number) => l?.itemId?.id !== k * 256 + 1),
+        ...(store.options ?? []).filter((o: Json, k: number) => o?.itemId?.id !== k * 256 + 2),
+      ].length;
+      if (misplaced) add("error", "scene-item-ids", `${sc}: ${misplaced} line${misplaced === 1 ? "" : "s"} or options have an id that is not their place in the list (line k is k*256+1, option k is k*256+2). The game finds them by that id: choices show no text and choosing one can crash the game.`, sc);
+      const optionIds = new Set((store.options ?? []).map((o: Json) => o?.itemId?.id));
+      const missing = (root.sceneGraph?.Data?.graph ?? []).flatMap((h: Json) => (h?.Data?.$type === "scnChoiceNode" ? h.Data.options ?? [] : [])).filter((o: Json) => !optionIds.has(o?.screenplayOptionId?.id)).length;
+      if (missing) add("error", "choice-option-missing", `${sc}: ${missing} choice option${missing === 1 ? "" : "s"} name a screenplay option the scene does not have. The choice shows no text and choosing it can crash the game.`, sc);
       // journal paths and facts used by the scene's own quest nodes
       for (const st of scene.steps) {
         for (const j of st.info?.journal ?? []) if (j.path && !used.has(j.path)) used.set(j.path, sc);

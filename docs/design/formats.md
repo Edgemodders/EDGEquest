@@ -103,7 +103,7 @@ A scan of the game's 4,627 `.scene` files (4 failed to read): 102 have V as the 
 |---|---|
 | Actors | `playerActors`: one `scnPlayerActorDef`, `findInContext`, contextual name `Player`, record `Character.Player_Puppet_Base`. `actors` is empty |
 | Graph | `scnStartNode` → `scnSectionNode` (dialogue line events) → `scnChoiceNode` → … → `scnEndNode`. Node ids are small numbers; an output socket is `(name, ordinal)`, and a choice's option *i* leaves from socket `(0, i)` |
-| Lines | A section's `scnDialogLineEvent` has `screenplayLineId`, `startTime` and `duration` in ms, `voParams` (`Vo_Context_Quest`, `Vo_Expression_Spoken`). Screenplay item ids step by 256 (1, 257, 513, …); option ids sit between them (2, …) |
+| Lines | A section's `scnDialogLineEvent` has `screenplayLineId`, `startTime` and `duration` in ms, `voParams` (`Vo_Context_Quest`, `Vo_Expression_Spoken`). A screenplay item's id is its place in its own list: line k is `k*256+1`, option k is `k*256+2` (all 9,591 lines and 1,897 options in 141 sampled quest scenes, 2026-10-22). The game finds an item by that id: in-game test 3 numbered lines and options with one shared counter, so the options pointed past the end of their list; the choice showed no text and choosing it crashed the game |
 | Text | `screenplayStore` lines and options point at a `locstringId`; `locStore` maps it per locale (`db_db`, `en_us`, …) to a variant and its text |
 | Performers | `debugSymbols` lists each performer: V's `#player` is performer id 1 for actor id 0, so **performer = actorId × 256 + 1 holds** |
 | Entry and exit | `entryPoints` `Start 0` and `exitPoints` `End 0`, which become the phase's scene node sockets |

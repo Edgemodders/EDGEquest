@@ -55,7 +55,11 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
   const key = (s: string) => stableId(`edgequest/${story.id}/${spec.name}/${s}`);
   const nodes: Node[] = [];
   let nextNode = 3; // 1 start, 2 end
-  let nextItem = 1; // screenplay ids step by 256: lines 1, 257, ...; options 2, 258, ...
+  // A screenplay item's id is its place in its list: line k is k*256+1, option k is k*256+2. Every game
+  // scene numbers them so (141 scenes, 2026-10-22), and the game finds an item by it: one shared counter
+  // left the options pointing past the end of their list (no text, crash on choosing; in-game test 3).
+  const lineId = () => lines.length * 256 + 1;
+  const optionId = () => options.length * 256 + 2;
   const lines: Json[] = [], options: Json[] = [], texts: SceneText[] = [];
   const eventSymbols: Json[] = [];
   const qb = new GraphBuilder(inst);
@@ -86,7 +90,7 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         let t = 0;
         while (i < items.length && items[i].kind === "line") {
           const l = items[i] as Extract<SceneItem, { kind: "line" }>;
-          const itemId = nextItem; nextItem += 256;
+          const itemId = lineId();
           const ruid = key(`${path}/${i}/line`);
           lines.push({
             $type: "scnscreenplayDialogLine", addressee: { $type: "scnActorId", id: V }, femaleLipsyncAnimationName: cname(""), maleLipsyncAnimationName: cname(""),
@@ -132,7 +136,7 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         const id = nextNode++;
         const opts: Json[] = [];
         for (const [j, o] of it.options.entries()) {
-          const itemId = nextItem + 1; nextItem += 256;
+          const itemId = optionId();
           const ruid = key(`${path}/${i}/option/${j}`);
           options.push({ $type: "scnscreenplayChoiceOption", itemId: { $type: "scnscreenplayItemId", id: itemId }, locstringId: { $type: "scnlocLocstringId", ruid }, usage: { $type: "scnscreenplayOptionUsage", playerGenderMask: { $type: "scnGenderMask", mask: 3 } } });
           texts.push({ id: ruid, text: o.text });

@@ -88,8 +88,12 @@ try {
     check(core.worldRefs(phaseJson).prefabs.join() === "#mq000_pr_apartment", "the made phase lists the area's world prefab", core.worldRefs(phaseJson).prefabs.join());
     const journal = JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.journal"))).json);
     check(JSON.stringify(journal).includes("#mq055_mp_megabuilding_apartment"), "the made marker stands on the game marker's world node");
-    const scene = core.readScene(JSON.parse((await bridge.fileToJson(path.join(archive, "scenes", "arrival.scene"))).json));
+    const sceneJson = JSON.parse((await bridge.fileToJson(path.join(archive, "scenes", "arrival.scene"))).json);
+    const scene = core.readScene(sceneJson);
     check(scene.lines.length === 4 && scene.options.length === 2 && scene.lines.every((l) => l.text), "the made scene reads back with its lines and choice", `${scene.lines.length} lines, ${scene.options.length} options`);
+    const store = sceneJson.Data.RootChunk.screenplayStore;
+    const ids = [...store.lines.map((l) => l.itemId.id), ...store.options.map((o) => o.itemId.id)];
+    check(store.lines.every((l, k) => l.itemId.id === k * 256 + 1) && store.options.every((o, k) => o.itemId.id === k * 256 + 2), "the made scene's lines and options are numbered by their place, as the game's are", ids.join(", "));
     const map = JSON.parse((await bridge.fileToJson(path.join(archive, "loc", "en-us", "subtitlemap.json"))).json).Data.RootChunk.root.Data;
     check(map.$type === "localizationPersistenceSubtitleMap" && map.entries.length === 1, "the .xl's subtitles entry is a subtitle map naming the scene's lines", map.$type);
     fs.appendFileSync(path.join(archive, "smoke_test.journal"), Buffer.from([0]));

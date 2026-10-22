@@ -16,6 +16,7 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - Places are map markers the game already has; the quest index now knows 4,266 of them by name, with the world spot each stands on. A new quest's marker stands on the same spot.
 - "arrive" waits until V is inside the place's trigger area, as the game's own quests do. The quest index knows the game's 10,221 quest trigger areas; a place names one with `area:`, or gets the one the game's own quest uses with its marker. The made phase switches on the world prefab the area belongs to.
 - Check Quest Mod warns when a phase waits for V in a game trigger area whose world prefab nothing in the mod switches on.
+- Check Quest Mod finds scene lines and options whose id is not their place in the list, and choice options that name an option the scene does not have: both leave a choice without text and can crash the game.
 - Making a quest again removes the files it made before and no longer needs, unless you changed them by hand.
 - Check Quest Mod finds a subtitles entry in the `.xl` that is not a subtitle map, subtitle files nothing loads, and map markers that would show at the world's origin.
 - The quest page says who and what a distance check measures between.
@@ -25,5 +26,6 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - A made quest's map marker showed far away at the world's origin: it now stands on the place's world spot.
 - A made quest's scene lines had no text: the `.xl` now lists a subtitle map, which names one subtitle file per scene.
 - Reaching a made quest's place did nothing: V's distance to a map marker's spot never counts, and the game's trigger areas exist only while their quest's world prefab is on.
+- A made scene's choice showed no text, and choosing an option crashed the game: lines and options are now numbered by their place in their own lists, as the game expects.
 
 - Check Quest Mod counted one onscreen text too many when texts use only a string key.
