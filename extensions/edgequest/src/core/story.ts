@@ -8,7 +8,7 @@
 //   type: side
 //   description: Someone left a shard at the overlook.
 //   places:
-//     home: { marker: quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment }
+//     home: { marker: quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment, area: "#mq000_tr_vs_apartment" }
 //   steps:
 //     - objective: Go home
 //       marker: home
@@ -28,16 +28,21 @@ export type QuestType = "side" | "minor";
 
 export interface Place {
   name: string;
-  /** A game map marker's journal path. The quest's marker and arrival use the world node it stands on. */
+  /** A game map marker's journal path. The quest's marker stands on the world node it stands on. */
   marker: string;
+  /** A game trigger area's NodeRef ("#mq000_tr_vs_apartment"): arriving means V is inside it. Absent: the
+   *  area the game's own quest uses with that marker, from the quest index. */
+  area?: string;
 }
 
 /** The default place of a new quest: the map marker at V's apartment door in Megabuilding H10. */
 export const DefaultPlaceMarker = "quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment";
+/** ...and V's apartment's own trigger area, from the apartment quest that runs most of the game (mq000). */
+export const DefaultPlaceArea = "#mq000_tr_vs_apartment";
 
 export type StoryStep =
   | { kind: "objective"; id: string; text: string; marker?: string }
-  | { kind: "arrive"; place: string; within: number }
+  | { kind: "arrive"; place: string }
   | { kind: "wait"; seconds: number }
   | { kind: "scene"; scene: string }
   | { kind: "set"; fact: string; value: number; add: boolean }
@@ -122,7 +127,9 @@ export function readStory(text: string): StoryRead {
   if (typeof rawPlaces !== "object" || Array.isArray(rawPlaces)) add(["places"], "places", "places is a list of names, each with marker: <a game map marker>.");
   else for (const [name, v] of Object.entries(rawPlaces)) {
     const p = (v ?? {}) as Record<string, unknown>;
-    if (typeof p.marker === "string" && p.marker.trim()) places.set(name, { name, marker: p.marker.trim() });
+    const area = p.area === undefined ? undefined : String(p.area).trim();
+    if (area !== undefined && !/^[#$]/.test(area)) add(["places", name, "area"], `places ${name}`, `The area "${area}" is not a NodeRef. A trigger area's NodeRef starts with #, for example ${DefaultPlaceArea} (in quotes: YAML reads # as a comment).`);
+    if (typeof p.marker === "string" && p.marker.trim()) places.set(name, { name, marker: p.marker.trim(), area: area || undefined });
     // A bare world position does not work in the game: a quest's marker and arrival need a world node (in-game test 2026-10-22).
     else if (p.at !== undefined) add(["places", name, "at"], `places ${name}`, `The place "${name}" has at: [x, y, z], which the game cannot use yet: a quest's map marker and arrival need a world node. Use marker: <a game map marker's journal path> near where you want it (Find Quest finds them).`);
     else add(["places", name], `places ${name}`, `The place "${name}" needs marker: <a game map marker's journal path>, for example ${DefaultPlaceMarker} (V's apartment door).`);
@@ -187,9 +194,9 @@ export function readStory(text: string): StoryRead {
     } else if ("arrive" in o) {
       const place = String(o.arrive);
       if (!places.has(place)) add([...p, "arrive"], where, `"${place}" is not one of the places (${[...places.keys()].join(", ") || "none yet"}).`);
-      const within = o.within === undefined ? 10 : Number(o.within);
-      if (!(within > 0)) add([...p, "within"], where, "within is a distance in metres, more than 0.");
-      steps.push({ kind: "arrive", place, within });
+      // Arriving is V inside the place's trigger area; a distance did not fire in the game (test 2, 2026-10-22).
+      if (o.within !== undefined) add([...p, "within"], where, `arrive no longer takes within: V arrives by entering the place's trigger area (the place's area:).`);
+      steps.push({ kind: "arrive", place });
     } else if ("wait" in o) {
       const seconds = Number(o.wait);
       if (!(seconds > 0)) add([...p, "wait"], where, "wait is a number of seconds, more than 0.");
@@ -238,6 +245,8 @@ function readFact(v: unknown): { fact: string; value: number; add: boolean } | u
 export function storyTemplate(o: { title: string; id: string; author: string; type?: QuestType; objective?: string; place?: string; placeName?: string }): string {
   const place = o.placeName || "spot";
   const marker = o.place || `${DefaultPlaceMarker}   # V's apartment door; any game map marker works`;
+  // The default marker's own area is a romance quest's; V's apartment quest has the same room as an area.
+  const area = o.place ? "" : `\n    area: "${DefaultPlaceArea}"   # V arrives inside this; leave it out to use the marker's own`;
   return `# EDGEquest story file. EDGEquest makes the game files from it: edit this file, not those.
 quest: ${o.title}
 id: ${o.id}
@@ -247,7 +256,7 @@ description: What the journal says about this quest.
 
 places:
   ${place}:
-    marker: ${marker}
+    marker: ${marker}${area}
 
 steps:
   - objective: ${o.objective || "Go to the place"}

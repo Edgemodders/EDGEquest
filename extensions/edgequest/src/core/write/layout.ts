@@ -7,6 +7,13 @@ import type { Story } from "../story";
 /** A story place's game map marker, looked up in the quest index by the caller. */
 export type PlaceLookup = (place: string) => IndexedPlace | undefined;
 
+/** Where V arrives at a place: a trigger area, and the world prefabs a phase lists so the area exists. */
+export interface PlaceArea {
+  area: string;
+  prefabs: string[];
+}
+export type AreaLookup = (place: string) => PlaceArea | undefined;
+
 export interface Layout {
   /** The mod's folder inside the archive: mod\<author>\<id>. */
   folder: string;

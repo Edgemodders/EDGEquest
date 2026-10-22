@@ -4,8 +4,8 @@
 
 import type { Json } from "../graph";
 import type { Story } from "../story";
-import { Instances, cname, entityRef, handle, Handle, resource } from "./wk";
-import { Layout, PlaceLookup, QuestFileEntryIndex, SceneEntry, SceneExit } from "./layout";
+import { Instances, cname, entityRef, handle, Handle, nodeRef, resource } from "./wk";
+import { AreaLookup, Layout, QuestFileEntryIndex, SceneEntry, SceneExit } from "./layout";
 
 type SocketKind = "Input" | "Output" | "CutDestination";
 
@@ -52,9 +52,10 @@ export interface PhaseProblem {
   message: string;
 }
 
-export async function writePhase(story: Story, files: Layout, inst: Instances, place: PlaceLookup): Promise<{ root: Json; problems: PhaseProblem[] }> {
+export async function writePhase(story: Story, files: Layout, inst: Instances, areaOf: AreaLookup): Promise<{ root: Json; problems: PhaseProblem[] }> {
   const g = new GraphBuilder(inst);
   const problems: PhaseProblem[] = [];
+  const prefabs = new Set<string>();
   const input = await g.node("questInputNodeDefinition", { socketName: cname("In1") }, [], ["Out"]);
   let tail: { node: Built; out: string } = { node: input, out: "Out" };
   const chain = async (b: Built, into = "In", out = "Out") => {
@@ -86,20 +87,17 @@ export async function writePhase(story: Story, files: Layout, inst: Instances, p
         break;
       }
       case "arrive": {
-        // V within so many metres of the place's world node: the game's own arrival check (2,130 uses).
-        // The GPS distance to a marker did not fire in the in-game test of 2026-10-22.
-        const at = place(s.place);
+        // V inside a trigger area, as the game's own quests wait at a place. The area lives in a quest's world
+        // prefab, which exists only while a running phase lists it, so this phase lists it too (the Judy mod
+        // lists a game prefab the same way). In-game tests of 2026-10-22: GPS arrival and V's distance to a
+        // marker's node never fired.
+        const at = areaOf(s.place);
         if (!at) {
-          problems.push({ step: i + 1, message: `arrive: ${s.place} is not a game map marker the quest index knows, so there is nothing to arrive at.` });
+          problems.push({ step: i + 1, message: `arrive: the place "${s.place}" has no trigger area to arrive in. Its marker has none the quest index knows; give the place area: "#<a game trigger area>".` });
           break;
         }
-        const player = handle(await inst.make("questUniversalRef", { entityReference: entityRef(""), refLocalPlayer: 1, mainPlayerObject: 0 }));
-        const type = handle(await inst.make("questDistanceComparison_ConditionType", {
-          comparisonType: "LessOrEqual",
-          distanceDefinition1: handle(await inst.make("questObjectDistance", { entityRef: player, nodeRef2: entityRef(at.node) })),
-          distanceDefinition2: handle(await inst.make("questValueDistance", { distanceValue: s.within })),
-        }));
-        const cond = handle(await inst.make("questDistanceCondition", { type }));
+        at.prefabs.forEach((p) => prefabs.add(p));
+        const cond = handle(await inst.make("questTriggerCondition", { type: "IsInside", isPlayerActivator: 1, activatorRef: entityRef(""), triggerAreaRef: nodeRef(at.area) }));
         await chain(await g.node("questPauseConditionNodeDefinition", { condition: cond }, ["In"], ["Out"]));
         break;
       }
@@ -135,6 +133,7 @@ export async function writePhase(story: Story, files: Layout, inst: Instances, p
   g.connect(tail.node, tail.out, output, "In");
 
   const graph = handle(await inst.make("questGraphDefinition", { nodes: g.nodes }));
-  const root = await inst.make("questQuestPhaseResource", { cookingPlatform: "PLATFORM_PC", graph, phasePrefabs: [], inplacePhases: [] });
+  const phasePrefabs = [...prefabs].map((p) => ({ $type: "questQuestPrefabEntry", prefabNodeRef: nodeRef(p) }));
+  const root = await inst.make("questQuestPhaseResource", { cookingPlatform: "PLATFORM_PC", graph, phasePrefabs, inplacePhases: [] });
   return { root, problems };
 }

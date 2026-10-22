@@ -65,6 +65,9 @@ try {
     const door = idx.places?.[core.DefaultPlaceMarker];
     check(Object.keys(idx.places ?? {}).length > 3000 && door?.node === "#mq055_mp_megabuilding_apartment", "the index knows the game's map markers and their world nodes",
       `${Object.keys(idx.places ?? {}).length}; V's door: ${door?.node} at ${door?.at}`);
+    const home = idx.areas?.[core.DefaultPlaceArea];
+    check(Object.keys(idx.areas ?? {}).length > 5000 && !!door?.area && home?.prefabs.includes("#mq000_pr_apartment"), "the index knows the game's quest trigger areas and their prefabs",
+      `${Object.keys(idx.areas ?? {}).length}; V's door marker's own area: ${door?.area}; ${core.DefaultPlaceArea} in ${home?.prefabs}`);
   }
 
   // Writing: the New Quest template, made in a throwaway WolvenKit project, read back.
@@ -78,10 +81,11 @@ try {
     check(!made.problems.length && made.files.filter((f) => f.result === "written").length === 7 && !errors.length, "the template makes 7 files that pass quest_check",
       [...made.problems.map((p) => p.message), ...errors.map((f) => f.message)].join("; ") || made.files.map((f) => f.file.split("/").pop()).join(", "));
     const archive = path.join(proj, "source", "archive", "mod", "edgequest", "smoke_test");
-    const phase = core.readQuestFile(JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.questphase"))).json));
-    const words = core.questMarkdown("smoke", phase);
-    check(/Wait until distance from V to #mq055_mp_megabuilding_apartment ≤ 10 m/.test(words) && /Scene arrival/.test(words) && /quest quests\/side_quest\/smoke_test becomes succeeded/.test(words), "the made phase reads back as its steps",
+    const phaseJson = JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.questphase"))).json);
+    const words = core.questMarkdown("smoke", core.readQuestFile(phaseJson));
+    check(/Wait until V is inside #mq000_tr_vs_apartment/.test(words) && /Scene arrival/.test(words) && /quest quests\/side_quest\/smoke_test becomes succeeded/.test(words), "the made phase reads back as its steps",
       words.split("\n").find((l) => /Wait until/.test(l)) ?? "");
+    check(core.worldRefs(phaseJson).prefabs.join() === "#mq000_pr_apartment", "the made phase lists the area's world prefab", core.worldRefs(phaseJson).prefabs.join());
     const journal = JSON.parse((await bridge.fileToJson(path.join(archive, "smoke_test.journal"))).json);
     check(JSON.stringify(journal).includes("#mq055_mp_megabuilding_apartment"), "the made marker stands on the game marker's world node");
     const scene = core.readScene(JSON.parse((await bridge.fileToJson(path.join(archive, "scenes", "arrival.scene"))).json));

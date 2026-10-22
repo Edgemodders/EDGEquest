@@ -10,7 +10,7 @@ import { parse as parseYaml } from "yaml";
 import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
 import { readQuestFile, value, type Json, type QuestGraph } from "./graph";
-import { readJournal, type JournalRead, type QuestIndex } from "./questIndex";
+import { readJournal, worldRefs, type JournalRead, type QuestIndex } from "./questIndex";
 import { readScene } from "./scene";
 import { fnv1a64 } from "./write/wk";
 
@@ -242,6 +242,22 @@ export async function checkQuestMod(mod: ModFiles, bridge: BridgeClient | undefi
       }
     };
     await visit(q.graph);
+  }
+
+  // 4b. Trigger areas a phase waits for V in that live in a game quest's prefab: they exist only while a phase
+  // lists that prefab (in-game test 2026-10-22). Checked against the index's areas.
+  if (index?.areas) {
+    const listed = new Set<string>();
+    const waits: [string, string][] = [];
+    for (const p of phaseFiles.keys()) {
+      const w = worldRefs(await json(p));
+      w.prefabs.forEach((x) => listed.add(x));
+      for (const t of w.triggers) waits.push([p, t]);
+    }
+    for (const [p, t] of waits) {
+      const a = index.areas[t];
+      if (a && !a.prefabs.some((x) => listed.has(x))) add("warning", "area-not-loaded", `${p} waits for V inside ${t}, which is in the game's world prefab ${a.prefabs.join(", ")}. That prefab exists only while a phase lists it, and no phase in this mod does, so V may never arrive. List it in the phase's phasePrefabs.`, p);
+    }
   }
 
   // 5. The mod's journal: its root, its entries and their texts.

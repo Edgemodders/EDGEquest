@@ -12,10 +12,13 @@ import { summarize } from "./describe";
 import { readQuestFile, value, type Json } from "./graph";
 import { murmur3 } from "./write/wk";
 
-export const IndexVersion = 4;
+export const IndexVersion = 5;
 
 /** The game's compiled map marker positions. */
 const MappinsFile = "base\\worlds\\03_night_city\\_compiled\\default\\03_night_city.mappins";
+
+/** A world sector that belongs to a quest's prefab: it is loaded only while a running phase lists the prefab. */
+const QuestSector = /\\quest_[0-9a-f]+\.streamingsector$/i;
 
 export interface IndexedFile {
   path: string;
@@ -43,6 +46,16 @@ export interface IndexedPlace {
   node: string;
   /** The marker's offset from the node. */
   offset: [number, number, number];
+  /** The trigger area the game's own quest waits for V in after showing this marker, nearest first. */
+  area?: string;
+}
+
+/** A trigger area in a quest's world prefab: where a quest waits for V to arrive. */
+export interface IndexedArea {
+  /** The node's world position [x, y, z]. */
+  at: [number, number, number];
+  /** The world prefabs a phase lists so the area exists while it runs (game phases list these), outer first. */
+  prefabs: string[];
 }
 
 /** A journal entry as the index reads it. A quest map pin on a world node also has its node and offset. */
@@ -64,6 +77,8 @@ export interface QuestIndex {
   journal: Record<string, JournalInfo>;
   /** Map markers on a world node that the game has a compiled position for, by journal path. */
   places: Record<string, IndexedPlace>;
+  /** Trigger areas in the game's quest prefabs, by NodeRef ("#mq000_tr_vs_apartment"). */
+  areas: Record<string, IndexedArea>;
   failed: string[];
 }
 
@@ -133,6 +148,59 @@ export function readJournal(json: Json, into: Map<string, JournalRead>): void {
   walk(root, "");
 }
 
+/** The world prefabs a quest file lists (its own and its inline phases'), and the trigger areas it waits for V in. */
+export function worldRefs(json: Json): { prefabs: string[]; triggers: string[] } {
+  const prefabs = new Set<string>(), triggers = new Set<string>();
+  const walk = (x: Json) => {
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    if (!x || typeof x !== "object") return;
+    if (x.$type === "questQuestPrefabEntry") { const r = value(x.prefabNodeRef); if (typeof r === "string" && r !== "0") prefabs.add(r); }
+    if (x.$type === "questTriggerCondition" && Number(x.isPlayerActivator) === 1) { const r = value(x.triggerAreaRef); if (typeof r === "string" && r !== "0") triggers.add(r); }
+    for (const v of Object.values(x)) walk(v as Json);
+  };
+  walk(json);
+  return { prefabs: [...prefabs], triggers: [...triggers] };
+}
+
+/**
+ * Every trigger area in the game's quest prefab sectors, by NodeRef. A node's path names the prefabs it sits
+ * in ("$/.../#mq000_pr_apartment/#mq000_tr_vs_apartment"); the ones game phases list are what a new phase
+ * lists, or the outermost when none is.
+ */
+async function readAreas(bridge: BridgeClient, listed: Set<string>, failed: string[], progress: Progress): Promise<Record<string, IndexedArea>> {
+  const sectors = new Set<string>();
+  for (const b of await listGameFiles(bridge, ".streamingblock")) {
+    try {
+      const blk = JSON.parse((await bridge.toJson(b)).json ?? "null");
+      for (const d of blk?.Data?.RootChunk?.descriptors ?? []) { const p = value(d.data?.DepotPath); if (typeof p === "string" && QuestSector.test(p)) sectors.add(p); }
+    } catch (e) {
+      failed.push(`${b}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  const areas: Record<string, IndexedArea> = {};
+  let i = 0;
+  for (const s of sectors) {
+    if (i++ % 200 === 0) progress("Reading the world's quest trigger areas", i, sectors.size);
+    let rc: Json;
+    try { rc = JSON.parse((await bridge.toJson(s)).json ?? "null")?.Data?.RootChunk; } catch (e) { failed.push(`${s}: ${e instanceof Error ? e.message : String(e)}`); continue; }
+    const nodes = rc?.nodes ?? [];
+    for (const d of rc?.nodeData?.Data ?? rc?.nodeData ?? []) {
+      if (nodes[d.NodeIndex]?.Data?.$type !== "worldTriggerAreaNode") continue;
+      const full = value(d.QuestPrefabRefHash);
+      if (typeof full !== "string") continue;
+      const segs = full.split("/");
+      const chain = segs.slice(0, -1).filter((x) => x.startsWith("#"));
+      if (!chain.length) continue;
+      const prefabs = chain.filter((x) => listed.has(x));
+      const at = [d.Position?.X, d.Position?.Y, d.Position?.Z].map((n) => Math.round(Number(n ?? 0) * 100) / 100) as [number, number, number];
+      for (const alias of segs[segs.length - 1].split(";")) if (alias.startsWith("#") && !areas[alias]) areas[alias] = { at, prefabs: prefabs.length ? prefabs : [chain[0]] };
+    }
+  }
+  return areas;
+}
+
+const distance = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
 /** Builds the index from the game and writes it to the cache. */
 export async function buildIndex(bridge: BridgeClient, cacheDir: string, progress: Progress = () => undefined): Promise<QuestIndex> {
   const t0 = Date.now();
@@ -141,11 +209,17 @@ export async function buildIndex(bridge: BridgeClient, cacheDir: string, progres
   const key = await gameKey(bridge);
   const paths = await listGameFiles(bridge, ".quest", ".questphase");
   const files: IndexedFile[] = [];
+  const listedPrefabs = new Set<string>();
+  const triggersOf = new Map<string, string[]>();
   for (let i = 0; i < paths.length; i++) {
     const p = paths[i];
     try {
       const r = await bridge.toJson(p);
-      const q = readQuestFile(JSON.parse(r.json ?? "null"));
+      const raw = JSON.parse(r.json ?? "null");
+      const w = worldRefs(raw);
+      w.prefabs.forEach((x) => listedPrefabs.add(x));
+      if (w.triggers.length) triggersOf.set(p, w.triggers);
+      const q = readQuestFile(raw);
       const s = summarize(q.graph, q.handles);
       let nodes = 0;
       const count = (g: typeof q.graph) => { for (const n of g.nodes) { nodes++; if (n.inner) count(n.inner); } };
@@ -208,7 +282,26 @@ export async function buildIndex(bridge: BridgeClient, cacheDir: string, progres
     failed.push(`map markers: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  const idx: QuestIndex = { version: IndexVersion, key, builtAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), files, journal, places, failed };
+  const areas = await readAreas(bridge, listedPrefabs, failed, progress);
+  // A marker's area: of the trigger areas the game's own phases wait for V in after showing it (phases that
+  // use the marker's objective), the nearest to the marker. In-game test 2026-10-22: V's distance to a
+  // marker's node never fired; the game's own quests wait in trigger areas.
+  for (const [p, place] of Object.entries(places)) {
+    const objective = p.slice(0, p.lastIndexOf("/"));
+    let best: { area: string; d: number } | undefined;
+    for (const f of files) {
+      if (!f.journal.includes(objective) && !f.journal.includes(p)) continue;
+      for (const t of triggersOf.get(f.path) ?? []) {
+        const a = areas[t];
+        if (!a) continue;
+        const d = distance(a.at, place.at);
+        if (d <= 50 && (!best || d < best.d)) best = { area: t, d };
+      }
+    }
+    if (best) place.area = best.area;
+  }
+
+  const idx: QuestIndex = { version: IndexVersion, key, builtAt: new Date().toISOString(), seconds: Math.round((Date.now() - t0) / 1000), files, journal, places, areas, failed };
   fs.mkdirSync(cacheDir, { recursive: true });
   fs.writeFileSync(indexFile(cacheDir), JSON.stringify(idx));
   return idx;

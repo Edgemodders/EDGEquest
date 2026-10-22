@@ -13,7 +13,7 @@ import type { Json } from "../graph";
 import type { QuestIndex } from "../questIndex";
 import { readStory, type Story, type StoryProblem } from "../story";
 import { writeJournal } from "./journal";
-import { layout, type Layout, type PlaceLookup } from "./layout";
+import { layout, type AreaLookup, type Layout, type PlaceLookup } from "./layout";
 import { writePhase } from "./phase";
 import { writeScene } from "./scene";
 import { writeOnscreens, writeSubtitleMap, writeSubtitles } from "./texts";
@@ -82,10 +82,17 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
     const p = story.places.get(name);
     return p ? options.index?.places?.[p.marker] : undefined;
   };
+  // Arriving: the place's own area, or the one the game's quest uses with its marker. An area the index does
+  // not know (a mod's own, or one always in the world) is used as it is, with no prefab to list.
+  const areaOf: AreaLookup = (name) => {
+    const p = story.places.get(name);
+    const area = p?.area ?? (p ? options.index?.places?.[p.marker]?.area : undefined);
+    return area ? { area, prefabs: options.index?.areas?.[area]?.prefabs ?? [] } : undefined;
+  };
   if (story.places.size && !options.index) result.problems.push({ at: "places", message: "Places are game map markers, found in the quest index, which is not built yet. Build it first (Game Quests view, or the MCP tool quest_index)." });
 
   // Build everything in memory first, so a problem stops before any file is touched.
-  const phase = await writePhase(story, files, inst, place);
+  const phase = await writePhase(story, files, inst, areaOf);
   for (const p of phase.problems) result.problems.push({ at: `steps ${p.step}`, message: p.message });
   const journal = await writeJournal(story, files, inst, place);
   for (const m of journal.problems) result.problems.push({ at: "places", message: m });
