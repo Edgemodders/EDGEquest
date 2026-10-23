@@ -61,8 +61,8 @@ EDGEquest owns the story layer, which no other EDGE tool owns, and calls the oth
 | Onscreen texts (LocKeys) | REDcode's LocKeys view, REDbridge `loc.*` | Ready | Uses them |
 | Deploying | EDGEdeck (`EDGEdeckApi` 1, `@edgemodders/edgedeck-mcp`) | Ready | Through REDcode's install or EDGEdeck's API |
 | The running game: facts, the journal, starting a phase, moving V | REDnode | Only the raw `api_call`; `archives_reload` swaps archives live | **Request:** quest calls and MCP tools ([REDnode #15](https://github.com/Edgemodders/REDnode/issues/15)) |
-| Voice for new lines | EDGEwave 0.1.0 | Speak Line (ElevenLabs, opt-in) makes a WAV; no API, no MCP, no `.wem` | **Request:** voice a list of lines, and a `.wem` route ([EDGEwave #5](https://github.com/Edgemodders/EDGEwave/issues/5)). Until then, lines are unvoiced |
-| Places and people: spots, trigger areas, map markers, NPC spawns | EDGEbuilder 0.3.4 | Places meshes, entities and lights with NodeRefs; markers, areas and NPC spawns not planned | **Request:** quest places ([EDGEbuilder #3](https://github.com/Edgemodders/EDGEbuilder/issues/3)). Until then, quests use places the game already has |
+| Voice for new lines | EDGEwave 0.1.0 | Speak Line (ElevenLabs, opt-in) makes a WAV; no API, no MCP, no `.wem` | **Request:** voice a list of lines, and a `.wem` route ([EDGEwave #5](https://github.com/Edgemodders/EDGEwave/issues/5)); followed up 2026-10-22: the checklist's voice items, and MCP tools for Q6. Until then, lines are unvoiced |
+| Places and people: spots, trigger areas, map markers, NPC spawns | EDGEbuilder 0.3.4 | Places meshes, entities and lights with NodeRefs; markers, areas and NPC spawns not planned | **Request:** quest places ([EDGEbuilder #3](https://github.com/Edgemodders/EDGEbuilder/issues/3)); followed up 2026-10-22: the checklist, MCP tools for Q6, and what the in-game tests found about markers and trigger areas. Until then, quests use places the game already has |
 | New items as rewards | EDGEfab (design only), TweakXL | | References their records |
 | Shipping to assistants | EDGEchat (the Claude Code plugin), EDGEkit | | Asks to be listed once released |
 
