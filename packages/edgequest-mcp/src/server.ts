@@ -15,8 +15,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  BridgeClient, buildIndex, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
-  sceneMarkdown, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
+  BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
+  sceneMarkdown, storyChecklist, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
 declare const __VERSION__: string;
@@ -204,7 +204,7 @@ server.registerTool(
       "scene lines without subtitles, leftovers from a copied scene, and the game's own facts the mod sets. Give archive (a mod .archive with its .xl beside it) or folder " +
       "(a WolvenKit project, or a folder of extracted files laid out by game path). Uses the quest index for the game-side checks.",
     inputSchema: {
-      archive: z.string().optional().describe("A mod .archive, such as <game>\archive\pc\mod\MyQuest.archive; its .xl files beside it are read too."),
+      archive: z.string().optional().describe("A mod .archive, such as <game>\\archive\\pc\\mod\\MyQuest.archive; its .xl files beside it are read too."),
       folder: z.string().optional().describe("Or a WolvenKit project folder (with its .cpmodproj), or a folder of extracted files."),
     },
   },
@@ -217,6 +217,38 @@ server.registerTool(
       const mod = archive ? await modFromArchive(b, archive) : modFromFolder(folder!);
       const result = await checkQuestMod(mod, b, await index());
       return text(checkMarkdown(path.basename(target), result));
+    } catch (e) {
+      return failure(e);
+    }
+  },
+);
+
+server.registerTool(
+  "quest_checklist",
+  {
+    description:
+      "What is left for the modder in a quest made from a story file (<id>.quest.yaml): its checklist. Where the quest uses a stand-in (a line shown as text with no voice, " +
+      "the template's description), EDGEquest puts an item on the list with the EDGE tool that can do it; items written under todo: in the story file are listed too. " +
+      "To add an item, write it under todo: in the story file (- Decide what the reward is); to tick one, give it done: true. Making the quest keeps the found items up to date " +
+      "in the file. Open items never stop the quest from playing. Give story (a .quest.yaml) or project (a WolvenKit project: every story file at its top).",
+    inputSchema: {
+      story: z.string().optional().describe("A story file, <project>\\<id>.quest.yaml."),
+      project: z.string().optional().describe("Or a WolvenKit project folder: lists the checklist of every story file at its top."),
+    },
+  },
+  async ({ story, project }) => {
+    try {
+      if (!story && !project) throw new Error("Give story (a .quest.yaml) or project (a WolvenKit project folder).");
+      const files = story ? [story] : fs.readdirSync(project!).filter((n) => n.toLowerCase().endsWith(".quest.yaml")).map((n) => path.join(project!, n));
+      if (!files.length) return text(`No story files (*.quest.yaml) at the top of ${project}.`);
+      const parts: string[] = [];
+      for (const f of files) {
+        if (!fs.existsSync(f)) throw new Error(`No such file: ${f}`);
+        const c = storyChecklist(fs.readFileSync(f, "utf8"));
+        parts.push(`## ${path.basename(f)}\n\n${checklistMarkdown(c.items)}` +
+          (c.current ? "" : `\n\nThe story file has ${c.problems.length} problem(s), so the stand-ins in it were not looked for: ${c.problems.slice(0, 5).map((p) => `${p.at}: ${p.message}`).join(" ")}`));
+      }
+      return text(parts.join("\n\n"));
     } catch (e) {
       return failure(e);
     }

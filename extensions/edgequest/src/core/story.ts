@@ -21,8 +21,11 @@
 //       - choice:
 //           Take the shard: [ { V: Mine now. }, { set: took } ]
 //           Leave it: [ { V: Not my business. } ]
+//   todo:
+//     - Decide what the reward is
 
 import { parseDocument } from "yaml";
+import { findStandIns, readChecklist, syncChecklist, TemplateDescription, type ChecklistItem } from "./checklist";
 
 export type QuestType = "side" | "minor";
 
@@ -70,6 +73,8 @@ export interface Story {
   places: Map<string, Place>;
   steps: StoryStep[];
   scenes: Map<string, SceneSpec>;
+  /** The checklist: what is left for the modder (see checklist.ts). */
+  todo: ChecklistItem[];
 }
 
 export interface StoryProblem {
@@ -215,10 +220,13 @@ export function readStory(text: string): StoryRead {
   const ids = steps.filter((s) => s.kind === "objective").map((s) => (s as { id: string }).id);
   for (const d of ids.filter((x, i) => ids.indexOf(x) !== i)) add(["steps"], "steps", `Two objectives have the id "${d}".`);
 
-  for (const k of Object.keys(raw)) if (!["quest", "id", "author", "type", "description", "places", "steps", "scenes"].includes(k)) add([k], k, `Unknown key "${k}". Keys: quest, id, author, type, description, places, steps, scenes.`);
+  const todo = readChecklist(raw.todo);
+  for (const p of todo.problems) add(["todo"], p.at, p.message);
+
+  for (const k of Object.keys(raw)) if (!["quest", "id", "author", "type", "description", "places", "steps", "scenes", "todo"].includes(k)) add([k], k, `Unknown key "${k}". Keys: quest, id, author, type, description, places, steps, scenes, todo.`);
 
   if (problems.length) return { problems };
-  const story: Story = { title, id, author, type, description: str("description") || undefined, places, steps, scenes };
+  const story: Story = { title, id, author, type, description: str("description") || undefined, places, steps, scenes, todo: todo.items };
   // Facts named without the quest's prefix get it.
   for (const s of steps) if (s.kind === "set") s.fact = factName(story, s.fact);
   const prefix = (items: SceneItem[]) => items.forEach((it) => {
@@ -227,6 +235,18 @@ export function readStory(text: string): StoryRead {
   });
   for (const sc of scenes.values()) prefix(sc.items);
   return { story, problems };
+}
+
+/** A story file's checklist as the next make would leave it, without writing anything: the items written in
+ *  todo: plus the stand-ins found now. A story file with problems gives only what todo: says. */
+export function storyChecklist(text: string): { items: ChecklistItem[]; problems: StoryProblem[]; current: boolean } {
+  const read = readStory(text);
+  if (!read.story) {
+    let raw: unknown;
+    try { raw = (parseDocument(text).toJS() as Record<string, unknown> | null)?.todo; } catch { raw = undefined; }
+    return { items: readChecklist(raw).items, problems: read.problems, current: false };
+  }
+  return { items: syncChecklist(text, findStandIns(read.story)).items, problems: [], current: true };
 }
 
 function readFact(v: unknown): { fact: string; value: number; add: boolean } | undefined {
@@ -252,7 +272,7 @@ quest: ${o.title}
 id: ${o.id}
 author: ${o.author}
 type: ${o.type ?? "side"}
-description: What the journal says about this quest.
+description: ${TemplateDescription}
 
 places:
   ${place}:

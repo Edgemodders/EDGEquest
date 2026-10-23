@@ -9,6 +9,7 @@ import * as os from "os";
 import * as path from "path";
 import type { BridgeClient } from "../bridgeClient";
 import { checkQuestMod, modFromFolder, type Finding } from "../check";
+import { findStandIns, syncChecklist, type ChecklistItem } from "../checklist";
 import type { Json } from "../graph";
 import type { QuestIndex } from "../questIndex";
 import { readStory, type Story, type StoryProblem } from "../story";
@@ -32,6 +33,10 @@ export interface MakeResult {
   problems: StoryProblem[];
   files: MadeFile[];
   findings: Finding[];
+  /** The quest's checklist after this make: what is left for the modder. */
+  checklist: ChecklistItem[];
+  /** The story file was updated with the checklist items EDGEquest found. */
+  storyUpdated?: boolean;
 }
 
 export interface MakeOptions {
@@ -66,15 +71,17 @@ localization:
 
 /** Makes every file from a story file in a WolvenKit project. */
 export async function makeQuest(project: string, storyFile: string, bridge: BridgeClient, options: MakeOptions = {}): Promise<MakeResult> {
-  const result: MakeResult = { problems: [], files: [], findings: [] };
+  const result: MakeResult = { problems: [], files: [], findings: [], checklist: [] };
   if (!isProject(project)) {
     result.problems.push({ at: "project", message: `${project} is not a WolvenKit project (no .cpmodproj). Make one in WolvenKit or REDcode first.` });
     return result;
   }
-  const read = readStory(fs.readFileSync(storyFile, "utf8"));
+  const text = fs.readFileSync(storyFile, "utf8");
+  const read = readStory(text);
   result.problems.push(...read.problems);
   if (!read.story) return result;
   const story = (result.story = read.story);
+  result.checklist = story.todo;
   const files = layout(story);
   const inst = Instances.fromBridge(bridge);
 
@@ -159,6 +166,11 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
   fs.mkdirSync(path.dirname(mf), { recursive: true });
   fs.writeFileSync(mf, JSON.stringify({ story: path.relative(project, storyFile).replace(/\\/g, "/"), madeAt: new Date().toISOString(), files: made }, null, 2));
   if (kept.length) result.problems.push({ at: "files", message: `${kept.length} file(s) were changed by hand since EDGEquest made them, so they were kept: ${kept.join(", ")}. Make again with force to overwrite them, or move your changes into the story file.` });
+
+  // The checklist: the stand-ins this make found go in the story file's todo:, kept up to date.
+  const list = syncChecklist(text, findStandIns(story));
+  result.checklist = list.items;
+  if (list.changed) { fs.writeFileSync(storyFile, list.text, "utf8"); result.storyUpdated = true; }
 
   if (!options.noCheck) result.findings = (await checkQuestMod(modFromFolder(project), bridge, options.index)).findings;
   return result;

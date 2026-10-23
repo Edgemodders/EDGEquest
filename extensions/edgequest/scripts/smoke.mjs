@@ -96,10 +96,19 @@ try {
     check(store.lines.every((l, k) => l.itemId.id === k * 256 + 1) && store.options.every((o, k) => o.itemId.id === k * 256 + 2), "the made scene's lines and options are numbered by their place, as the game's are", ids.join(", "));
     const map = JSON.parse((await bridge.fileToJson(path.join(archive, "loc", "en-us", "subtitlemap.json"))).json).Data.RootChunk.root.Data;
     check(map.$type === "localizationPersistenceSubtitleMap" && map.entries.length === 1, "the .xl's subtitles entry is a subtitle map naming the scene's lines", map.$type);
+    const listed = made.checklist.map((i) => i.found ?? i.do);
+    check(made.storyUpdated && listed.join() === "description,voice/arrival" && /found: voice\/arrival/.test(fs.readFileSync(storyFile, "utf8")) && /^# EDGEquest story file/.test(fs.readFileSync(storyFile, "utf8")),
+      "the checklist lists the template's stand-ins and the story file keeps them, comments kept", listed.join(", "));
+    // A hand-written item, a ticked one, a written description, a scene gone: the list follows.
+    const edited = fs.readFileSync(storyFile, "utf8").replace(/^description: .*$/m, "description: A real one.").replace(/^todo:\n/m, "todo:\n  - Decide what the reward is\n  - do: Name the bar\n    done: true\n");
+    const synced = core.syncChecklist(edited, [{ found: "description", do: "x", settled: true }, { found: "voice/other", do: "Voice the 2 lines in the scene other.", tool: "EDGEwave", settled: false }]);
+    check(synced.items.map((i) => `${i.found ?? i.do}${i.done ? "+" : ""}`).join() === "Decide what the reward is,Name the bar+,description+,voice/other", "the checklist keeps hand-written items, ticks settled ones and drops what is gone",
+      synced.items.map((i) => `${i.found ?? i.do}${i.done ? " (done)" : ""}`).join(", "));
     fs.appendFileSync(path.join(archive, "smoke_test.journal"), Buffer.from([0]));
     const again = await core.makeQuest(proj, storyFile, bridge, { index: idx, noCheck: true });
     const kept = again.files.find((f) => f.file.endsWith(".journal"))?.result;
     check(kept === "kept" && again.files.filter((f) => f.result === "unchanged").length === 6, "a made file changed by hand is kept, the rest are unchanged", again.files.map((f) => f.result).join(", "));
+    check(!again.storyUpdated && again.checklist.length === 2, "making again leaves the story file's checklist as it is", `${again.checklist.length} items`);
   } finally {
     fs.rmSync(proj, { recursive: true, force: true });
   }
