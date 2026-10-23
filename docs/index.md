@@ -14,13 +14,13 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 
 ## Roadmap status
 
-As of 2026-10-22.
+As of 2026-10-23.
 
 | Phase | Status |
 |---|---|
 | Q0 Design | Done 2026-10-21 |
 | Q1 Read | Built 2026-10-21; the owner's hand test passed the same day (one fault, fixed); Q1's own test is next |
-| Q2 Write | Plan agreed 2026-10-21; being built. The template quest plays in the game from start to end (in-game test 4, 2026-10-22). The checklist added 2026-10-22 |
+| Q2 Write | Plan agreed 2026-10-21; being built. The template quest plays in the game from start to end (in-game test 4, 2026-10-22). The checklist added 2026-10-22. Beats, the Storyboard and voice prompts agreed 2026-10-23 |
 | Q3 Try it | Not started |
 | Q4 Voice and world | Not started |
 | Q5 Ship | Not started |
