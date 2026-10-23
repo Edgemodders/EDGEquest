@@ -3,6 +3,7 @@
 export * from "./bridgeClient";
 export * from "./check";
 export * from "./checklist";
+export * from "./storyboard";
 export * from "./config";
 export * from "./gameFinder";
 export * from "./describe";

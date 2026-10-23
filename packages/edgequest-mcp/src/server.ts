@@ -16,7 +16,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
-  sceneMarkdown, storyChecklist, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
+  readStory, sceneMarkdown, storyChecklist, storyboard, storyboardMarkdown, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
 declare const __VERSION__: string;
@@ -151,11 +151,18 @@ server.registerTool(
   {
     description:
       "A .quest or .questphase in plain words: every step in reading order (wait until, if, set fact, journal, scene, phase, spawn and so on) with where it leads, " +
-      "then the facts it sets and tests, its journal entries, the scenes and phases it plays, and the NodeRefs it uses. Also which quest it belongs to and which files play it, from the index when built.",
+      "then the facts it sets and tests, its journal entries, the scenes and phases it plays, and the NodeRefs it uses. Also which quest it belongs to and which files play it, from the index when built. " +
+      "For a story file (file: <id>.quest.yaml), its beats instead: the Storyboard in words, each beat with its objective and steps and where it goes on to, with the choice that leads there.",
     inputSchema: { ...Source, limit: z.number().int().min(20).max(5000).default(400).describe("The most step lines to list.") },
   },
   async ({ path: p, file, limit }) => {
     try {
+      if (file?.toLowerCase().endsWith(".quest.yaml")) {
+        const read = readStory(fs.readFileSync(file, "utf8"));
+        if (!read.story) return text(`The story file has problems:\n${read.problems.map((x) => `- ${x.line ? `line ${x.line}, ` : ""}${x.at}: ${x.message}`).join("\n")}`);
+        const list = storyChecklist(fs.readFileSync(file, "utf8")).items;
+        return text(`# ${read.story.title}\n\n${storyboardMarkdown(read.story, storyboard(read.story, list))}`);
+      }
       const { json, title } = await loadJson({ path: p, file });
       const q = readQuestFile(json);
       let md = questMarkdown(title, q, limit);

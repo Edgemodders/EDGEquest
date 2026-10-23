@@ -100,7 +100,7 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
 
   // Build everything in memory first, so a problem stops before any file is touched.
   const phase = await writePhase(story, files, inst, areaOf);
-  for (const p of phase.problems) result.problems.push({ at: `steps ${p.step}`, message: p.message });
+  result.problems.push(...phase.problems);
   const journal = await writeJournal(story, files, inst, place);
   for (const m of journal.problems) result.problems.push({ at: "places", message: m });
   const scenes: [string, Json][] = [];
@@ -111,7 +111,7 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
     scenes.push([files.scene(spec.name), s.root]);
     subtitles.push([files.subtitles("en-us", spec.name), await writeSubtitles(s.texts, inst)]);
   }
-  for (const name of story.scenes.keys()) if (!story.steps.some((s) => s.kind === "scene" && s.scene === name)) result.problems.push({ at: `scenes ${name}`, message: `The scene "${name}" is never played: no step says scene: ${name}.` });
+  for (const name of story.scenes.keys()) if (!story.beats.some((b) => b.steps.some((s) => s.kind === "scene" && s.scene === name))) result.problems.push({ at: `scenes ${name}`, message: `The scene "${name}" is never played: no beat's step says scene: ${name}.` });
   if (result.problems.length) return result;
 
   const cr2w: [string, Json][] = [

@@ -1,11 +1,12 @@
-// Writes a story's steps as a .questphase: one chain of nodes from the input "In1" (where ArchiveXL starts
-// a phase added under the game's root quest) to the output "Out1". Node and socket shapes follow the
-// game's own phases (studied 2026-10-21, see docs/design/formats.md).
+// Writes a story's beats as a .questphase: from the input "In1" (where ArchiveXL starts a phase added under
+// the game's root quest) through each beat's steps, branching where a scene's choice goes on to another
+// beat, to the output "Out1". Node and socket shapes follow the game's own phases (studied 2026-10-21, see
+// docs/design/formats.md).
 
 import type { Json } from "../graph";
-import type { Story } from "../story";
+import { alwaysGoes, sceneGoes, type Story } from "../story";
 import { Instances, cname, entityRef, handle, Handle, nodeRef, resource } from "./wk";
-import { AreaLookup, Layout, QuestFileEntryIndex, SceneEntry, SceneExit } from "./layout";
+import { AreaLookup, Layout, QuestFileEntryIndex, SceneEntry, SceneExit, goExit } from "./layout";
 
 type SocketKind = "Input" | "Output" | "CutDestination";
 
@@ -48,89 +49,111 @@ export const journalPath = (realPath: string, className: string): Handle =>
   handle({ $type: "gameJournalPath", className: cname(className), editorPath: "", fileEntryIndex: QuestFileEntryIndex, realPath });
 
 export interface PhaseProblem {
-  step: number;
+  /** Where in the story: "beats go_home". */
+  at: string;
   message: string;
 }
+
+type End = { node: Built; out: string };
 
 export async function writePhase(story: Story, files: Layout, inst: Instances, areaOf: AreaLookup): Promise<{ root: Json; problems: PhaseProblem[] }> {
   const g = new GraphBuilder(inst);
   const problems: PhaseProblem[] = [];
   const prefabs = new Set<string>();
   const input = await g.node("questInputNodeDefinition", { socketName: cname("In1") }, [], ["Out"]);
-  let tail: { node: Built; out: string } = { node: input, out: "Out" };
-  const chain = async (b: Built, into = "In", out = "Out") => {
-    g.connect(tail.node, tail.out, b, into);
-    tail = { node: b, out };
-  };
   const journal = async (realPath: string, className: string, state: "Active" | "Succeeded" | "Failed", track = false) =>
     g.node("questJournalNodeDefinition", {
       type: handle(await inst.make("questJournalQuestEntry_NodeType", { path: journalPath(realPath, className), sendNotification: 1, trackQuest: track ? 1 : 0, optional: 0, version: "Initial" })),
-    }, ["Active", "Inactive", "Succeeded", "Failed"], ["Out"]).then((b) => ({ b, state }));
+    }, ["Active", "Inactive", "Succeeded", "Failed"], ["Out"]);
 
-  let current: { oid: string } | undefined;
-  let first = true;
-  for (const [i, s] of story.steps.entries()) {
-    switch (s.kind) {
-      case "objective": {
-        if (current) {
-          const done = await journal(files.objective(current.oid), "gameJournalQuestObjective", "Succeeded");
-          await chain(done.b, "Succeeded");
-        }
-        const on = await journal(files.objective(s.id), "gameJournalQuestObjective", "Active", first);
-        await chain(on.b, "Active");
-        if (first && story.description) {
-          const d = await journal(files.description(s.id), "gameJournalQuestDescription", "Active");
-          await chain(d.b, "Active");
-        }
-        first = false;
-        current = { oid: s.id };
-        break;
-      }
-      case "arrive": {
-        // V inside a trigger area, as the game's own quests wait at a place. The area lives in a quest's world
-        // prefab, which exists only while a running phase lists it, so this phase lists it too (the Judy mod
-        // lists a game prefab the same way). In-game tests of 2026-10-22: GPS arrival and V's distance to a
-        // marker's node never fired.
-        const at = areaOf(s.place);
-        if (!at) {
-          problems.push({ step: i + 1, message: `arrive: the place "${s.place}" has no trigger area to arrive in. Its marker has none the quest index knows; give the place area: "#<a game trigger area>".` });
+  // Each beat starts by making its objective active; the first also tracks the quest and shows its
+  // description. Whatever goes on to a beat connects to its start, so beats can be reached from several.
+  const starts = new Map<string, { first: Built; last: Built }>();
+  for (const [k, b] of story.beats.entries()) {
+    const on = await journal(files.objective(b.name), "gameJournalQuestObjective", "Active", k === 0);
+    let last = on;
+    if (k === 0 && story.description) {
+      last = await journal(files.description(b.name), "gameJournalQuestDescription", "Active");
+      g.connect(on, "Out", last, "Active");
+    }
+    starts.set(b.name, { first: on, last });
+  }
+  g.connect(input, "Out", starts.get(story.beats[0].name)!.first, "Active");
+
+  const toOutput: End[] = [];
+  const jumps: { from: End; beat: string; to: string }[] = [];
+  for (const b of story.beats) {
+    let tail: End = { node: starts.get(b.name)!.last, out: "Out" };
+    const chain = (n: Built, into = "In", out = "Out") => {
+      g.connect(tail.node, tail.out, n, into);
+      tail = { node: n, out };
+    };
+    let ended = false, cut = false;
+    for (const s of b.steps) {
+      if (cut) break;
+      switch (s.kind) {
+        case "arrive": {
+          // V inside a trigger area, as the game's own quests wait at a place. The area lives in a quest's world
+          // prefab, which exists only while a running phase lists it, so this phase lists it too (the Judy mod
+          // lists a game prefab the same way). In-game tests of 2026-10-22: GPS arrival and V's distance to a
+          // marker's node never fired.
+          const at = areaOf(s.place);
+          if (!at) {
+            problems.push({ at: `beats ${b.name}`, message: `arrive: the place "${s.place}" has no trigger area to arrive in. Its marker has none the quest index knows; give the place area: "#<a game trigger area>".` });
+            break;
+          }
+          at.prefabs.forEach((p) => prefabs.add(p));
+          const cond = handle(await inst.make("questTriggerCondition", { type: "IsInside", isPlayerActivator: 1, activatorRef: entityRef(""), triggerAreaRef: nodeRef(at.area) }));
+          chain(await g.node("questPauseConditionNodeDefinition", { condition: cond }, ["In"], ["Out"]));
           break;
         }
-        at.prefabs.forEach((p) => prefabs.add(p));
-        const cond = handle(await inst.make("questTriggerCondition", { type: "IsInside", isPlayerActivator: 1, activatorRef: entityRef(""), triggerAreaRef: nodeRef(at.area) }));
-        await chain(await g.node("questPauseConditionNodeDefinition", { condition: cond }, ["In"], ["Out"]));
-        break;
-      }
-      case "wait": {
-        const whole = Math.floor(s.seconds);
-        const type = handle(await inst.make("questRealtimeDelay_ConditionType", { hours: 0, minutes: 0, seconds: whole, miliseconds: Math.round((s.seconds - whole) * 1000) }));
-        const cond = handle(await inst.make("questTimeCondition", { type }));
-        await chain(await g.node("questPauseConditionNodeDefinition", { condition: cond }, ["In"], ["Out"]));
-        break;
-      }
-      case "scene": {
-        const location = { $type: "scnWorldMarker", type: "Tag", tag: cname("around_player"), nodeRef: { $type: "NodeRef", $storage: "uint64", $value: "0" } };
-        const b = await g.node("questSceneNodeDefinition", { sceneFile: resource(files.scene(s.scene)), sceneLocation: location }, [SceneEntry], [SceneExit]);
-        await chain(b, SceneEntry, SceneExit);
-        break;
-      }
-      case "set": {
-        const type = handle(await inst.make("questSetVar_NodeType", { factName: s.fact, value: s.value, setExactValue: s.add ? 0 : 1 }));
-        await chain(await g.node("questFactsDBManagerNodeDefinition", { type }, ["In"], ["Out"]));
-        break;
-      }
-      case "done":
-      case "failed": {
-        const state = s.kind === "done" ? "Succeeded" : "Failed";
-        if (current) await chain((await journal(files.objective(current.oid), "gameJournalQuestObjective", state)).b, state);
-        await chain((await journal(files.quest, "gameJournalQuest", state)).b, state);
-        current = undefined;
-        break;
+        case "wait": {
+          const whole = Math.floor(s.seconds);
+          const type = handle(await inst.make("questRealtimeDelay_ConditionType", { hours: 0, minutes: 0, seconds: whole, miliseconds: Math.round((s.seconds - whole) * 1000) }));
+          const cond = handle(await inst.make("questTimeCondition", { type }));
+          chain(await g.node("questPauseConditionNodeDefinition", { condition: cond }, ["In"], ["Out"]));
+          break;
+        }
+        case "scene": {
+          // A choice that says go: leaves the scene by its own exit, as game scenes branch (375 of 392 scene
+          // nodes in 300 game phases have several outputs, 2026-10-23); the rest of the beat follows "end".
+          const goes = story.scenes.get(s.scene) ? sceneGoes(story.scenes.get(s.scene)!) : [];
+          const location = { $type: "scnWorldMarker", type: "Tag", tag: cname("around_player"), nodeRef: { $type: "NodeRef", $storage: "uint64", $value: "0" } };
+          const n = await g.node("questSceneNodeDefinition", { sceneFile: resource(files.scene(s.scene)), sceneLocation: location }, [SceneEntry], [SceneExit, ...goes.map(goExit)]);
+          chain(n, SceneEntry, SceneExit);
+          for (const to of goes) jumps.push({ from: { node: n, out: goExit(to) }, beat: b.name, to });
+          if (alwaysGoes(story.scenes.get(s.scene)?.items ?? [])) cut = true; // nothing after it happens
+          break;
+        }
+        case "set": {
+          const type = handle(await inst.make("questSetVar_NodeType", { factName: s.fact, value: s.value, setExactValue: s.add ? 0 : 1 }));
+          chain(await g.node("questFactsDBManagerNodeDefinition", { type }, ["In"], ["Out"]));
+          break;
+        }
+        case "done":
+        case "failed": {
+          const state = s.kind === "done" ? "Succeeded" : "Failed";
+          chain(await journal(files.objective(b.name), "gameJournalQuestObjective", state), state);
+          chain(await journal(files.quest, "gameJournalQuest", state), state);
+          ended = true;
+          break;
+        }
       }
     }
+    if (cut) continue;
+    if (ended) toOutput.push(tail);
+    else if (b.next) jumps.push({ from: tail, beat: b.name, to: b.next });
+    else toOutput.push(tail); // the last beat, with no ending: the quest stays open
+  }
+
+  // Going on to another beat: this beat's objective is done, the next one's becomes active.
+  for (const j of jumps) {
+    const done = await journal(files.objective(j.beat), "gameJournalQuestObjective", "Succeeded");
+    g.connect(j.from.node, j.from.out, done, "Succeeded");
+    g.connect(done, "Out", starts.get(j.to)!.first, "Active");
   }
   const output = await g.node("questOutputNodeDefinition", { socketName: cname("Out1"), type: "Terminating" }, ["In"], []);
-  g.connect(tail.node, tail.out, output, "In");
+  for (const e of toOutput) g.connect(e.node, e.out, output, "In");
 
   const graph = handle(await inst.make("questGraphDefinition", { nodes: g.nodes }));
   const phasePrefabs = [...prefabs].map((p) => ({ $type: "questQuestPrefabEntry", prefabNodeRef: nodeRef(p) }));

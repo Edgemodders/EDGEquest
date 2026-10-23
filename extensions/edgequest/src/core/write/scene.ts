@@ -7,7 +7,7 @@ import type { Json } from "../graph";
 import type { SceneItem, SceneSpec, Story } from "../story";
 import { Instances, cname, handle, nodeRef, stableId, tweakId } from "./wk";
 import { GraphBuilder } from "./phase";
-import { SceneEntry, SceneExit } from "./layout";
+import { SceneEntry, SceneExit, goExit } from "./layout";
 
 
 const NoId = 4294967295;
@@ -78,6 +78,9 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
     }
   };
   let lastLineEvent: string | undefined;
+  // A go: ends the scene at its own end node, one per beat, with an exit named for it (game scenes name an
+  // exit per way out). The quest's scene node has an output per exit.
+  const goEnds = new Map<string, Node>();
 
   const layoutItems = async (items: SceneItem[], ends: Ends, path: string): Promise<Ends> => {
     let i = 0;
@@ -131,6 +134,17 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         nodes.push(n);
         link(ends, n);
         ends = [{ node: n }];
+        i++;
+      } else if (it.kind === "go") {
+        let e = goEnds.get(it.beat);
+        if (!e) {
+          const id = nextNode++;
+          e = { id, inOrdinal: 0, next: [], data: await inst.make("scnEndNode", { ffStrategy: "automatic", nodeId: nodeId(id), type: "Terminating" }) };
+          nodes.push(e);
+          goEnds.set(it.beat, e);
+        }
+        link(ends, e);
+        ends = [];
         i++;
       } else {
         const id = nextNode++;
@@ -201,9 +215,12 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
     actors: [],
     playerActors: [player],
     interruptionScenarios: [interruption],
-    sceneGraph: handle(await inst.make("scnSceneGraph", { graph, startNodes: [nodeId(1)], endNodes: [nodeId(2)] })),
+    sceneGraph: handle(await inst.make("scnSceneGraph", { graph, startNodes: [nodeId(1)], endNodes: [nodeId(2), ...[...goEnds.values()].map((n) => nodeId(n.id))] })),
     entryPoints: [{ $type: "scnEntryPoint", name: cname(SceneEntry), nodeId: nodeId(1) }],
-    exitPoints: [{ $type: "scnExitPoint", name: cname(SceneExit), nodeId: nodeId(2) }],
+    exitPoints: [
+      { $type: "scnExitPoint", name: cname(SceneExit), nodeId: nodeId(2) },
+      ...[...goEnds].map(([beat, n]) => ({ $type: "scnExitPoint", name: cname(goExit(beat)), nodeId: nodeId(n.id) })),
+    ],
     screenplayStore: await inst.make("scnscreenplayStore", { lines, options }),
     locStore: await inst.make("scnlocLocStoreEmbedded", { vdEntries: vd, vpEntries: vp }),
     debugSymbols: await inst.make("scnDebugSymbols", {

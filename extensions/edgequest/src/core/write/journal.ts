@@ -18,8 +18,7 @@ export async function writeJournal(story: Story, files: Layout, inst: Instances,
   const problems: string[] = [];
   const objectives: Json[] = [];
   let first = true;
-  for (const s of story.steps) {
-    if (s.kind !== "objective") continue;
+  for (const s of story.beats) {
     const children: Json[] = [];
     if (first && story.description) {
       texts.push({ key: files.key.description, text: story.description });
@@ -39,8 +38,8 @@ export async function writeJournal(story: Story, files: Layout, inst: Instances,
         mappinData: await inst.make("gamemappinsMappinData", { mappinType: tweakId("Mappins.QuestStaticMappinDefinition"), active: 1, visibleThroughWalls: 1 }),
       })));
     }
-    texts.push({ key: files.key.objective(s.id), text: s.text });
-    objectives.push(handle(await inst.make("gameJournalQuestObjective", { id: s.id, description: locKey(files.key.objective(s.id)), entries: children })));
+    texts.push({ key: files.key.objective(s.name), text: s.objective });
+    objectives.push(handle(await inst.make("gameJournalQuestObjective", { id: s.name, description: locKey(files.key.objective(s.name)), entries: children })));
     first = false;
   }
   const phase = handle(await inst.make("gameJournalQuestPhase", { id: "main", entries: objectives }));

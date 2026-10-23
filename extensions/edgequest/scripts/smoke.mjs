@@ -90,7 +90,17 @@ try {
     check(JSON.stringify(journal).includes("#mq055_mp_megabuilding_apartment"), "the made marker stands on the game marker's world node");
     const sceneJson = JSON.parse((await bridge.fileToJson(path.join(archive, "scenes", "arrival.scene"))).json);
     const scene = core.readScene(sceneJson);
-    check(scene.lines.length === 4 && scene.options.length === 2 && scene.lines.every((l) => l.text), "the made scene reads back with its lines and choice", `${scene.lines.length} lines, ${scene.options.length} options`);
+    check(scene.lines.length === 3 && scene.options.length === 2 && scene.lines.every((l) => l.text), "the made scene reads back with its lines and choice", `${scene.lines.length} lines, ${scene.options.length} options`);
+    // Beats: each choice leaves the scene by its own exit, and the phase's scene node has an output for each.
+    const exits = sceneJson.Data.RootChunk.exitPoints.map((x) => x.name.$value).join();
+    let sceneNode;
+    const find = (x) => { if (Array.isArray(x)) x.forEach(find); else if (x && typeof x === "object") { if (x.$type === "questSceneNodeDefinition") sceneNode = x; Object.values(x).forEach(find); } };
+    find(phaseJson);
+    const outs = (sceneNode?.sockets ?? []).map((s) => s.Data).filter((d) => d?.type === "Output").map((d) => d.name.$value).join();
+    check(exits === "end,go_look,go_leave" && outs === "end,go_look,go_leave", "a choice that goes on to a beat leaves the scene by its own exit, and the phase follows it", `scene exits ${exits}; phase scene outputs ${outs}`);
+    const board = core.storyboard(made.story);
+    const arrows = board.arrows.map((a) => `${a.from}>${a.to}${a.choice ? `:${a.choice}` : ""}`).join();
+    check(arrows === "arrive>look:Look around,arrive>leave:Leave" && board.cards.filter((c) => c.ending === "succeeded").length === 2, "the storyboard has the template's beats, its branch and its two endings", arrows);
     const store = sceneJson.Data.RootChunk.screenplayStore;
     const ids = [...store.lines.map((l) => l.itemId.id), ...store.options.map((o) => o.itemId.id)];
     check(store.lines.every((l, k) => l.itemId.id === k * 256 + 1) && store.options.every((o, k) => o.itemId.id === k * 256 + 2), "the made scene's lines and options are numbered by their place, as the game's are", ids.join(", "));
@@ -104,6 +114,11 @@ try {
     const synced = core.syncChecklist(edited, [{ found: "description", do: "x", settled: true }, { found: "voice/other", do: "Voice the 2 lines in the scene other.", tool: "EDGEwave", settled: false }]);
     check(synced.items.map((i) => `${i.found ?? i.do}${i.done ? "+" : ""}`).join() === "Decide what the reward is,Name the bar+,description+,voice/other", "the checklist keeps hand-written items, ticks settled ones and drops what is gone",
       synced.items.map((i) => `${i.found ?? i.do}${i.done ? " (done)" : ""}`).join(", "));
+    // A story from before beats (a steps: list) still reads, a beat per objective; go: and next: are checked.
+    const old = core.readStory("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One\n  - wait: 1\n  - objective: Two\n  - done\n");
+    check(old.story?.beats.map((b) => `${b.name}>${b.next ?? "end"}`).join() === "01>02,02>end", "a story with a steps: list reads as beats, one per objective", old.problems.map((p) => p.message).join("; ") || old.story.beats.map((b) => b.name).join());
+    const bad = core.readStory("quest: Bad\nid: bad\nauthor: me\nbeats:\n  a:\n    objective: A\n    steps: [ { scene: s } ]\n    next: nowhere\nscenes:\n  s:\n    - go: b\n    - V: Too late.\n");
+    check(bad.problems.length === 3 && bad.problems.every((p) => p.line), "a go: to no beat, a go: not last, and a next: to no beat are named with their lines", bad.problems.map((p) => `${p.line}: ${p.message}`).join(" | "));
     fs.appendFileSync(path.join(archive, "smoke_test.journal"), Buffer.from([0]));
     const again = await core.makeQuest(proj, storyFile, bridge, { index: idx, noCheck: true });
     const kept = again.files.find((f) => f.file.endsWith(".journal"))?.result;

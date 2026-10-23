@@ -2,6 +2,10 @@
 // files from it (see write/make.ts); people and assistants edit only this file. Reading it checks it and
 // names every problem in plain words, with where it is.
 //
+// A quest is a sequence of beats that can branch (agreed 2026-10-23). Each beat has its journal objective
+// and its steps; the next beat follows, unless a choice in a scene says go: to another. A beat ending in
+// done or failed ends the quest.
+//
 //   quest: Lost Shard
 //   id: lost_shard
 //   author: myname
@@ -9,20 +13,27 @@
 //   description: Someone left a shard at the overlook.
 //   places:
 //     home: { marker: quests/minor_quest/mq055_romance_apartment/01_megabuilding/judy_megabuilding/apartment, area: "#mq000_tr_vs_apartment" }
-//   steps:
-//     - objective: Go home
+//   beats:
+//     go_home:
+//       objective: Go home
 //       marker: home
-//     - arrive: home
-//     - scene: thoughts
-//     - done
+//       steps: [ { arrive: home }, { scene: thoughts } ]
+//     sell_it:
+//       objective: Sell the shard
+//       steps: [ done ]
+//     give_it_back:
+//       objective: Return the shard
+//       steps: [ done ]
 //   scenes:
 //     thoughts:
 //       - V: Huh. Someone's been here.
 //       - choice:
-//           Take the shard: [ { V: Mine now. }, { set: took } ]
-//           Leave it: [ { V: Not my business. } ]
+//           Keep it: [ { V: Mine now. }, { go: sell_it } ]
+//           Give it back: [ { V: Not my business. }, { go: give_it_back } ]
 //   todo:
 //     - Decide what the reward is
+//
+// A file with a plain steps: list (before beats) still reads: a new beat starts at each objective.
 
 import { parseDocument } from "yaml";
 import { findStandIns, readChecklist, syncChecklist, TemplateDescription, type ChecklistItem } from "./checklist";
@@ -44,7 +55,6 @@ export const DefaultPlaceMarker = "quests/minor_quest/mq055_romance_apartment/01
 export const DefaultPlaceArea = "#mq000_tr_vs_apartment";
 
 export type StoryStep =
-  | { kind: "objective"; id: string; text: string; marker?: string }
   | { kind: "arrive"; place: string }
   | { kind: "wait"; seconds: number }
   | { kind: "scene"; scene: string }
@@ -52,10 +62,26 @@ export type StoryStep =
   | { kind: "done" }
   | { kind: "failed" };
 
+export interface Beat {
+  /** The beat's name, which is also its journal objective's id. */
+  name: string;
+  /** The objective the journal shows during the beat: the card's title on the Storyboard. */
+  objective: string;
+  /** A place whose map marker the objective shows. */
+  marker?: string;
+  /** Its steps. done or failed, last, ends the quest. */
+  steps: StoryStep[];
+  /** The beat after this one when no choice says otherwise: next:, or the next beat in the list. Absent on
+   *  an ending, and on a last beat that does not end the quest. */
+  next?: string;
+}
+
 export type SceneItem =
   | { kind: "line"; speaker: string; text: string }
   | { kind: "choice"; options: { text: string; then: SceneItem[] }[] }
-  | { kind: "set"; fact: string; value: number; add: boolean };
+  | { kind: "set"; fact: string; value: number; add: boolean }
+  /** Ends the scene and goes on to this beat. */
+  | { kind: "go"; beat: string };
 
 export interface SceneSpec {
   name: string;
@@ -71,14 +97,15 @@ export interface Story {
   type: QuestType;
   description?: string;
   places: Map<string, Place>;
-  steps: StoryStep[];
+  /** In order; the first starts the quest. */
+  beats: Beat[];
   scenes: Map<string, SceneSpec>;
   /** The checklist: what is left for the modder (see checklist.ts). */
   todo: ChecklistItem[];
 }
 
 export interface StoryProblem {
-  /** Where: "steps 3", "scenes thoughts 2", "id". */
+  /** Where: "beats go_home 2", "scenes thoughts 2", "id". */
   at: string;
   message: string;
   /** 1-based line in the file, when known. */
@@ -91,7 +118,25 @@ export interface StoryRead {
 }
 
 const Name = /^[a-z][a-z0-9_]*$/;
+/** A beat's name is its objective's id: older files numbered them ("01"). */
+const BeatName = /^[a-z0-9_]+$/;
 const Speakers = new Set(["V"]);
+
+/** The beats a scene can go to, in the order its go: items name them. */
+export function sceneGoes(spec: SceneSpec): string[] {
+  const found: string[] = [];
+  const walk = (items: SceneItem[]) => items.forEach((it) => {
+    if (it.kind === "go" && !found.includes(it.beat)) found.push(it.beat);
+    if (it.kind === "choice") it.options.forEach((o) => walk(o.then));
+  });
+  walk(spec.items);
+  return found;
+}
+
+/** Every way through these scene items ends in a go:, so nothing after the scene happens in its beat. */
+export function alwaysGoes(items: SceneItem[]): boolean {
+  return items.some((it) => it.kind === "go" || (it.kind === "choice" && it.options.every((o) => alwaysGoes(o.then))));
+}
 
 /** A quest's own fact: the quest id is its prefix. A name with "game:" in front is the game's own fact. */
 export function factName(story: { id: string }, name: string): string {
@@ -143,15 +188,21 @@ export function readStory(text: string): StoryRead {
   // Scenes (read before steps so steps can refer to them).
   const scenes = new Map<string, SceneSpec>();
   const rawScenes = (raw.scenes ?? {}) as Record<string, unknown>;
+  const goes: { beat: string; path: (string | number)[]; at: string }[] = []; // checked once the beats are read
   const readItems = (list: unknown, path: (string | number)[], at: string, speakers: Set<string>): SceneItem[] => {
     const items: SceneItem[] = [];
-    if (!Array.isArray(list)) { add(path, at, "A scene is a list of lines (V: text), choices and facts to set."); return items; }
+    if (!Array.isArray(list)) { add(path, at, "A scene is a list of lines (V: text), choices, facts to set and go: <beat>."); return items; }
     list.forEach((it, i) => {
       const p = [...path, i], where = `${at} ${i + 1}`;
       if (!it || typeof it !== "object" || Array.isArray(it)) { add(p, where, `"${String(it)}" is not a line. Write a line as V: text.`); return; }
       const o = it as Record<string, unknown>;
       const keys = Object.keys(o);
-      if (keys.length === 1 && keys[0] === "choice") {
+      if (keys.length === 1 && keys[0] === "go") {
+        const beat = String(o.go ?? "").trim();
+        goes.push({ beat, path: [...p, "go"], at: where });
+        if (i < list.length - 1) add(p, where, `go: ends the scene and goes on to the beat ${beat}, so it comes last in its list.`);
+        items.push({ kind: "go", beat });
+      } else if (keys.length === 1 && keys[0] === "choice") {
         const opts = o.choice as Record<string, unknown>;
         if (!opts || typeof opts !== "object" || Array.isArray(opts) || !Object.keys(opts).length) { add(p, where, "A choice lists its options, each with what follows: choice: { Take it: [ ... ], Leave it: [ ... ] }"); return; }
         items.push({ kind: "choice", options: Object.entries(opts).map(([text, then], j) => ({ text, then: then == null ? [] : readItems(then, [...p, "choice", text], `${where} option ${j + 1}`, speakers) })) });
@@ -178,57 +229,113 @@ export function readStory(text: string): StoryRead {
     } else add(["scenes", name], `scenes ${name}`, `The scene "${name}" is a list of lines, or call: <who> with lines: for a phone call.`);
   }
 
-  // Steps.
-  const steps: StoryStep[] = [];
-  const rawSteps = raw.steps;
-  let objectives = 0;
-  if (!Array.isArray(rawSteps) || !rawSteps.length) add(["steps"], "steps", "The quest needs steps: at least one objective.");
-  else rawSteps.forEach((s, i) => {
-    const p = ["steps", i], where = `steps ${i + 1}`;
-    if (s === "done" || s === "failed") { steps.push({ kind: s }); return; }
-    if (!s || typeof s !== "object" || Array.isArray(s)) { add(p, where, `"${String(s)}" is not a step. Steps: objective, arrive, wait, scene, set, done, failed.`); return; }
+  // Beats, or the older steps: list read as beats.
+  const StepKinds = "arrive, wait, scene, set, done, failed";
+  const readStep = (s: unknown, p: (string | number)[], where: string): StoryStep | undefined => {
+    if (s === "done" || s === "failed") return { kind: s };
+    if (!s || typeof s !== "object" || Array.isArray(s)) { add(p, where, `"${String(s)}" is not a step. Steps: ${StepKinds}.`); return undefined; }
     const o = s as Record<string, unknown>;
-    if ("objective" in o) {
-      objectives++;
-      const oid = o.id === undefined ? String(objectives).padStart(2, "0") : String(o.id);
-      if (!/^[a-z0-9_]+$/.test(oid)) add([...p, "id"], where, `The objective id "${oid}" must be lower case letters, digits and _.`);
-      const marker = o.marker === undefined ? undefined : String(o.marker);
-      if (marker !== undefined && !places.has(marker)) add([...p, "marker"], where, `The marker "${marker}" is not one of the places (${[...places.keys()].join(", ") || "none yet"}).`);
-      steps.push({ kind: "objective", id: oid, text: String(o.objective ?? "").trim(), marker });
-      if (!String(o.objective ?? "").trim()) add(p, where, "The objective's text is empty.");
-    } else if ("arrive" in o) {
+    if ("arrive" in o) {
       const place = String(o.arrive);
       if (!places.has(place)) add([...p, "arrive"], where, `"${place}" is not one of the places (${[...places.keys()].join(", ") || "none yet"}).`);
       // Arriving is V inside the place's trigger area; a distance did not fire in the game (test 2, 2026-10-22).
       if (o.within !== undefined) add([...p, "within"], where, `arrive no longer takes within: V arrives by entering the place's trigger area (the place's area:).`);
-      steps.push({ kind: "arrive", place });
-    } else if ("wait" in o) {
+      return { kind: "arrive", place };
+    }
+    if ("wait" in o) {
       const seconds = Number(o.wait);
       if (!(seconds > 0)) add([...p, "wait"], where, "wait is a number of seconds, more than 0.");
-      steps.push({ kind: "wait", seconds });
-    } else if ("scene" in o) {
+      return { kind: "wait", seconds };
+    }
+    if ("scene" in o) {
       const scene = String(o.scene);
       if (!scenes.has(scene)) add([...p, "scene"], where, `"${scene}" is not one of the scenes (${[...scenes.keys()].join(", ") || "none yet"}).`);
-      steps.push({ kind: "scene", scene });
-    } else if ("set" in o) {
+      return { kind: "scene", scene };
+    }
+    if ("set" in o) {
       const f = readFact(o.set);
-      if (!f) add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }.");
-      else steps.push({ kind: "set", ...f });
-    } else add(p, where, `Unknown step ${Object.keys(o).join(", ")}. Steps: objective, arrive, wait, scene, set, done, failed.`);
+      if (!f) { add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }."); return undefined; }
+      return { kind: "set", ...f };
+    }
+    add(p, where, "objective" in o ? "A beat has one objective, under its name. Start a new beat for the next objective." : `Unknown step ${Object.keys(o).join(", ")}. Steps: ${StepKinds}.`);
+    return undefined;
+  };
+  const checkMarker = (marker: string | undefined, p: (string | number)[], where: string) => {
+    if (marker !== undefined && !places.has(marker)) add(p, where, `The marker "${marker}" is not one of the places (${[...places.keys()].join(", ") || "none yet"}).`);
+  };
+  const beats: Beat[] = [];
+  const explicitNext = new Map<Beat, { name: string; path: (string | number)[] }>();
+  const beatPath = new Map<Beat, (string | number)[]>();
+  if (raw.beats !== undefined && raw.steps !== undefined) add(["steps"], "steps", "A story has beats: or steps:, not both. Move the steps into beats.");
+  else if (raw.beats !== undefined) {
+    const rawBeats = raw.beats as Record<string, unknown>;
+    if (!rawBeats || typeof rawBeats !== "object" || Array.isArray(rawBeats) || !Object.keys(rawBeats).length) add(["beats"], "beats", "beats names the quest's beats, each with its objective and steps: beats: { go_home: { objective: Go home, steps: [ { arrive: home } ] } }");
+    else for (const [name, v] of Object.entries(rawBeats)) {
+      const p = ["beats", name], where = `beats ${name}`;
+      if (!BeatName.test(name)) add(p, where, `The beat name "${name}" must be lower case letters, digits and _.`);
+      if (!v || typeof v !== "object" || Array.isArray(v)) { add(p, where, `The beat ${name} needs its objective: ${name}: { objective: Go home, steps: [ ... ] }`); continue; }
+      const o = v as Record<string, unknown>;
+      for (const k of Object.keys(o)) if (!["objective", "marker", "steps", "next"].includes(k)) add([...p, k], where, `Unknown key "${k}" in a beat. Keys: objective, marker, steps, next.`);
+      const objective = String(o.objective ?? "").trim();
+      if (!objective) add(p, where, `The beat ${name} needs its objective, the line the journal shows: objective: Go home`);
+      const marker = o.marker === undefined ? undefined : String(o.marker);
+      checkMarker(marker, [...p, "marker"], where);
+      const beat: Beat = { name, objective, marker, steps: [] };
+      if (o.steps !== undefined && o.steps !== null && !Array.isArray(o.steps)) add([...p, "steps"], where, "steps is a list: steps: [ { arrive: home }, done ]");
+      else (o.steps as unknown[] | undefined)?.forEach((s, i) => { const st = readStep(s, [...p, "steps", i], `${where} ${i + 1}`); if (st) beat.steps.push(st); });
+      if (o.next !== undefined) explicitNext.set(beat, { name: String(o.next), path: [...p, "next"] });
+      beatPath.set(beat, p);
+      beats.push(beat);
+    }
+  } else if (raw.steps !== undefined) {
+    const rawSteps = raw.steps;
+    let current: Beat | undefined;
+    if (!Array.isArray(rawSteps) || !rawSteps.length) add(["steps"], "steps", "The quest needs steps: at least one objective.");
+    else rawSteps.forEach((s, i) => {
+      const p = ["steps", i], where = `steps ${i + 1}`;
+      if (s && typeof s === "object" && !Array.isArray(s) && "objective" in s) {
+        const o = s as Record<string, unknown>;
+        const name = o.id === undefined ? String(beats.length + 1).padStart(2, "0") : String(o.id);
+        if (!BeatName.test(name)) add([...p, "id"], where, `The objective id "${name}" must be lower case letters, digits and _.`);
+        const marker = o.marker === undefined ? undefined : String(o.marker);
+        checkMarker(marker, [...p, "marker"], where);
+        current = { name, objective: String(o.objective ?? "").trim(), marker, steps: [] };
+        if (!current.objective) add(p, where, "The objective's text is empty.");
+        beatPath.set(current, ["steps"]);
+        beats.push(current);
+        return;
+      }
+      const st = readStep(s, p, where);
+      if (!st) return;
+      if (!current) add(p, where, "Start the steps with an objective: the journal needs one before anything happens.");
+      else current.steps.push(st);
+    });
+    if (Array.isArray(rawSteps) && rawSteps.length && !beats.length) add(["steps"], "steps", "The quest needs at least one objective, or it never shows in the journal.");
+  } else add([], "beats", "The quest needs beats: at least one, with its objective. beats: { go_home: { objective: Go home, steps: [ ... ] } }");
+
+  const beatNames = beats.map((b) => b.name);
+  for (const d of beatNames.filter((x, i) => beatNames.indexOf(x) !== i)) add(["beats"], "beats", `Two beats (objectives) are named "${d}".`);
+  const known = (name: string) => beatNames.includes(name);
+  const beatList = () => beatNames.join(", ") || "none yet";
+  beats.forEach((b, i) => {
+    const ending = b.steps.findIndex((s) => s.kind === "done" || s.kind === "failed");
+    if (ending >= 0 && ending < b.steps.length - 1) add(beatPath.get(b)!, `beats ${b.name}`, `${b.steps[ending].kind} ends the quest, so it is the beat ${b.name}'s last step.`);
+    const next = explicitNext.get(b);
+    if (ending >= 0) { if (next) add(next.path, `beats ${b.name}`, `The beat ${b.name} ends the quest (${b.steps[ending].kind}), so it has no next.`); return; }
+    if (next && !known(next.name)) add(next.path, `beats ${b.name}`, `next: "${next.name}" is not one of the beats (${beatList()}).`);
+    b.next = next?.name ?? beats[i + 1]?.name;
   });
-  if (rawSteps && Array.isArray(rawSteps) && !objectives) add(["steps"], "steps", "The quest needs at least one objective, or it never shows in the journal.");
-  const ids = steps.filter((s) => s.kind === "objective").map((s) => (s as { id: string }).id);
-  for (const d of ids.filter((x, i) => ids.indexOf(x) !== i)) add(["steps"], "steps", `Two objectives have the id "${d}".`);
+  for (const g of goes) if (!known(g.beat)) add(g.path, g.at, `go: "${g.beat}" is not one of the beats (${beatList()}).`);
 
   const todo = readChecklist(raw.todo);
   for (const p of todo.problems) add(["todo"], p.at, p.message);
 
-  for (const k of Object.keys(raw)) if (!["quest", "id", "author", "type", "description", "places", "steps", "scenes", "todo"].includes(k)) add([k], k, `Unknown key "${k}". Keys: quest, id, author, type, description, places, steps, scenes, todo.`);
+  for (const k of Object.keys(raw)) if (!["quest", "id", "author", "type", "description", "places", "beats", "steps", "scenes", "todo"].includes(k)) add([k], k, `Unknown key "${k}". Keys: quest, id, author, type, description, places, beats, scenes, todo.`);
 
   if (problems.length) return { problems };
-  const story: Story = { title, id, author, type, description: str("description") || undefined, places, steps, scenes, todo: todo.items };
+  const story: Story = { title, id, author, type, description: str("description") || undefined, places, beats, scenes, todo: todo.items };
   // Facts named without the quest's prefix get it.
-  for (const s of steps) if (s.kind === "set") s.fact = factName(story, s.fact);
+  for (const b of beats) for (const s of b.steps) if (s.kind === "set") s.fact = factName(story, s.fact);
   const prefix = (items: SceneItem[]) => items.forEach((it) => {
     if (it.kind === "set") it.fact = factName(story, it.fact);
     if (it.kind === "choice") it.options.forEach((o) => prefix(o.then));
@@ -278,24 +385,34 @@ places:
   ${place}:
     marker: ${marker}${area}
 
-steps:
-  - objective: ${o.objective || "Go to the place"}
+beats:                    # the quest's beats in order; a choice can go: to another
+  arrive:
+    objective: ${o.objective || "Go to the place"}
     marker: ${place}
-  - arrive: ${place}
-  - scene: arrival
-  - objective: Think it over
-  - wait: 3
-  - done
+    steps:
+      - arrive: ${place}
+      - scene: arrival      # the choice in it picks the next beat
+  look:
+    objective: Look around
+    steps:
+      - wait: 3
+      - done              # an ending
+  leave:
+    objective: Think it over
+    steps:
+      - wait: 3
+      - done              # the other ending
 
 scenes:
   arrival:
     - V: Here it is.
     - choice:
         Look around:
-          - V: Nothing. Just the wind.
+          - V: Let's see what's here.
           - set: looked
+          - go: look
         Leave:
           - V: Not worth it.
-    - V: Time to go.
+          - go: leave
 `;
 }

@@ -66,6 +66,8 @@ export function layout(story: Pick<Story, "id" | "author" | "type">): Layout {
 /** A written scene's entry and exit names; the phase's scene node uses them as its socket names. */
 export const SceneEntry = "start";
 export const SceneExit = "end";
+/** The scene exit that goes on to a beat, as game scenes name an exit per way out ("whats_this"). */
+export const goExit = (beat: string) => `go_${beat}`;
 
 /** The position in a journal path of the entry that owns the file: the quest (quests/<type>/<id>). */
 export const QuestFileEntryIndex = 2;

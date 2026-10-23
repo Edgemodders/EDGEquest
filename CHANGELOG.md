@@ -17,6 +17,8 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - "arrive" waits until V is inside the place's trigger area, as the game's own quests do. The quest index knows the game's 10,221 quest trigger areas; a place names one with `area:`, or gets the one the game's own quest uses with its marker. The made phase switches on the world prefab the area belongs to.
 - The quest checklist: what is left for the modder. Where a quest uses a stand-in, such as a line shown as text with no voice or the template's description, making the quest puts an item under `todo:` in the story file, with the EDGE tool that can do it, and keeps it up to date; the item ticks itself once the thing is done. Items you or an assistant write under `todo:` are kept as they are; `done: true` ticks one. Open items never stop the quest from playing.
 - MCP `quest_checklist`: a story file's or a project's checklist.
+- Beats: a story file is a sequence of beats under `beats:`, each with its journal objective and steps. A choice in a scene can `go:` to another beat, so a quest branches, and branches can join again; a beat ending in `done` or `failed` is an ending. EDGEquest makes the branch from the scene's own exits, as the game's quests do; you never handle facts for it. Story files with a `steps:` list still work.
+- `quest_describe` on a story file gives its beats in words: each beat's objective and steps, and where it goes on to, with the choice that leads there.
 - Check Quest Mod warns when a phase waits for V in a game trigger area whose world prefab nothing in the mod switches on.
 - Check Quest Mod finds scene lines and options whose id is not their place in the list, and choice options that name an option the scene does not have: both leave a choice without text and can crash the game.
 - Making a quest again removes the files it made before and no longer needs, unless you changed them by hand.
@@ -25,6 +27,7 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 
 **Fixed**
 
+- On game 2.5 the quest index found no trigger areas, so a new quest's arrival had none to wait in. It finds them again; until REDbridge reads every 2.5 file, about 3,000 of the game's areas are missing (https://github.com/Edgemodders/REDbridge/issues/10).
 - A made quest's map marker showed far away at the world's origin: it now stands on the place's world spot.
 - A made quest's scene lines had no text: the `.xl` now lists a subtitle map, which names one subtitle file per scene.
 - Reaching a made quest's place did nothing: V's distance to a map marker's spot never counts, and the game's trigger areas exist only while their quest's world prefab is on.
