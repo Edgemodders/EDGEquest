@@ -184,8 +184,13 @@ async function readAreas(bridge: BridgeClient, listed: Set<string>, failed: stri
     let rc: Json;
     try { rc = JSON.parse((await bridge.toJson(s)).json ?? "null")?.Data?.RootChunk; } catch (e) { failed.push(`${s}: ${e instanceof Error ? e.message : String(e)}`); continue; }
     const nodes = rc?.nodes ?? [];
-    for (const d of rc?.nodeData?.Data ?? rc?.nodeData ?? []) {
-      if (nodes[d.NodeIndex]?.Data?.$type !== "worldTriggerAreaNode") continue;
+    const data: Json[] = rc?.nodeData?.Data ?? rc?.nodeData ?? [];
+    for (const [k, d] of data.entries()) {
+      // Since game 2.5 (2026-10-23) REDbridge 0.10.0 reads every NodeIndex as the same number, past the end of
+      // the nodes; the entries then come one per node, in order (441 of 446 sectors read). *Inferred*, not
+      // documented: by place, 1,136 of 1,325 trigger areas have trigger names.
+      const node = nodes[d.NodeIndex] ?? (data.length === nodes.length ? nodes[k] : undefined);
+      if (node?.Data?.$type !== "worldTriggerAreaNode") continue;
       const full = value(d.QuestPrefabRefHash);
       if (typeof full !== "string") continue;
       const segs = full.split("/");
