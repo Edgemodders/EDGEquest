@@ -18,6 +18,7 @@ import { layout, type AreaLookup, type Layout, type PlaceLookup } from "./layout
 import { writePhase } from "./phase";
 import { writeScene } from "./scene";
 import { writeOnscreens, writeSubtitleMap, writeSubtitles } from "./texts";
+import { assignVoiceIds, readVoiceRecord } from "../voice";
 import { Instances, cr2wJson } from "./wk";
 
 export interface MadeFile {
@@ -35,7 +36,7 @@ export interface MakeResult {
   findings: Finding[];
   /** The quest's checklist after this make: what is left for the modder. */
   checklist: ChecklistItem[];
-  /** The story file was updated with the checklist items EDGEquest found. */
+  /** The story file was updated: the checklist items EDGEquest found, or ids for new voice: blocks. */
   storyUpdated?: boolean;
 }
 
@@ -76,10 +77,14 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
     result.problems.push({ at: "project", message: `${project} is not a WolvenKit project (no .cpmodproj). Make one in WolvenKit or REDcode first.` });
     return result;
   }
-  const text = fs.readFileSync(storyFile, "utf8");
-  const read = readStory(text);
+  let text = fs.readFileSync(storyFile, "utf8");
+  let read = readStory(text);
   result.problems.push(...read.problems);
   if (!read.story) return result;
+  // A voice: block gets its id before anything is made from it, so its line's id never changes again.
+  const ids = assignVoiceIds(text);
+  if (ids.added) { text = ids.text; read = readStory(text); }
+  if (!read.story) { result.problems.push(...read.problems); return result; }
   const story = (result.story = read.story);
   result.checklist = story.todo;
   const files = layout(story);
@@ -167,10 +172,11 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
   fs.writeFileSync(mf, JSON.stringify({ story: path.relative(project, storyFile).replace(/\\/g, "/"), madeAt: new Date().toISOString(), files: made }, null, 2));
   if (kept.length) result.problems.push({ at: "files", message: `${kept.length} file(s) were changed by hand since EDGEquest made them, so they were kept: ${kept.join(", ")}. Make again with force to overwrite them, or move your changes into the story file.` });
 
-  // The checklist: the stand-ins this make found go in the story file's todo:, kept up to date.
-  const list = syncChecklist(text, findStandIns(story));
+  // The checklist: the stand-ins this make found go in the story file's todo:, kept up to date; voice takes
+  // count from EDGEwave's record. The story file is written with it, and with any voice ids given above.
+  const list = syncChecklist(text, findStandIns(story, readVoiceRecord(project, story.id)));
   result.checklist = list.items;
-  if (list.changed) { fs.writeFileSync(storyFile, list.text, "utf8"); result.storyUpdated = true; }
+  if (list.changed || ids.added) { fs.writeFileSync(storyFile, list.text, "utf8"); result.storyUpdated = true; }
 
   if (!options.noCheck) result.findings = (await checkQuestMod(modFromFolder(project), bridge, options.index)).findings;
   return result;

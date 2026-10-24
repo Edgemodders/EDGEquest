@@ -8,6 +8,7 @@ import type { SceneItem, SceneSpec, Story } from "../story";
 import { Instances, cname, handle, nodeRef, stableId, tweakId } from "./wk";
 import { GraphBuilder } from "./phase";
 import { SceneEntry, SceneExit, goExit } from "./layout";
+import { lineKey } from "../voice";
 
 
 const NoId = 4294967295;
@@ -94,7 +95,7 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         while (i < items.length && items[i].kind === "line") {
           const l = items[i] as Extract<SceneItem, { kind: "line" }>;
           const itemId = lineId();
-          const ruid = key(`${path}/${i}/line`);
+          const ruid = lineKey(story, spec.name, `${path}/${i}`, l.voice?.id); // the same id sceneLines gives
           lines.push({
             $type: "scnscreenplayDialogLine", addressee: { $type: "scnActorId", id: V }, femaleLipsyncAnimationName: cname(""), maleLipsyncAnimationName: cname(""),
             itemId: { $type: "scnscreenplayItemId", id: itemId }, locstringId: { $type: "scnlocLocstringId", ruid }, speaker: { $type: "scnActorId", id: V },

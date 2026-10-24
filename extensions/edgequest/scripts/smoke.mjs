@@ -107,7 +107,7 @@ try {
     const map = JSON.parse((await bridge.fileToJson(path.join(archive, "loc", "en-us", "subtitlemap.json"))).json).Data.RootChunk.root.Data;
     check(map.$type === "localizationPersistenceSubtitleMap" && map.entries.length === 1, "the .xl's subtitles entry is a subtitle map naming the scene's lines", map.$type);
     const listed = made.checklist.map((i) => i.found ?? i.do);
-    check(made.storyUpdated && listed.join() === "description,voice/arrival" && /found: voice\/arrival/.test(fs.readFileSync(storyFile, "utf8")) && /^# EDGEquest story file/.test(fs.readFileSync(storyFile, "utf8")),
+    check(made.storyUpdated && listed.join() === "description,voice-prompt/arrival,voice/arrival" && /found: voice\/arrival/.test(fs.readFileSync(storyFile, "utf8")) && /^# EDGEquest story file/.test(fs.readFileSync(storyFile, "utf8")),
       "the checklist lists the template's stand-ins and the story file keeps them, comments kept", listed.join(", "));
     // A hand-written item, a ticked one, a written description, a scene gone: the list follows.
     const edited = fs.readFileSync(storyFile, "utf8").replace(/^description: .*$/m, "description: A real one.").replace(/^todo:\n/m, "todo:\n  - Decide what the reward is\n  - do: Name the bar\n    done: true\n");
@@ -123,7 +123,26 @@ try {
     const again = await core.makeQuest(proj, storyFile, bridge, { index: idx, noCheck: true });
     const kept = again.files.find((f) => f.file.endsWith(".journal"))?.result;
     check(kept === "kept" && again.files.filter((f) => f.result === "unchanged").length === 6, "a made file changed by hand is kept, the rest are unchanged", again.files.map((f) => f.result).join(", "));
-    check(!again.storyUpdated && again.checklist.length === 2, "making again leaves the story file's checklist as it is", `${again.checklist.length} items`);
+    check(!again.storyUpdated && again.checklist.length === 3, "making again leaves the story file's checklist and voice ids as they are", `${again.checklist.length} items`);
+
+    // Voice: the template's voice: block got an id, and its line's text id comes from it.
+    const storyNow = fs.readFileSync(storyFile, "utf8");
+    const vid = storyNow.match(/voice:[^\n]*\n\s+id: ([a-z0-9]+)/)?.[1];
+    const first = store.lines[0].locstringId.ruid;
+    check(!!vid && first === core.lineKey({ id: "smoke_test" }, "arrival", "main/0", vid) && /# how the line is spoken/.test(storyNow), "a voice: block gets an id once, and its line's id comes from it (comments kept)", `id ${vid}, line ${first}`);
+    // EDGEwave's record: a take of the line as it is counts; a take of what it said before does not.
+    const lines0 = core.storyLines(made.story.id === "smoke_test" ? core.readStory(storyNow).story : made.story);
+    const rec = (say) => ({ edgewave: "voice", version: 1, quest: "smoke_test", lines: { [lines0[0].id]: { scene: "arrival", speaker: "V", text: lines0[0].text, say, direction: lines0[0].voice.direction, female: "a.wav", male: "b.wav" } } });
+    const vf = core.voiceFile(proj, "smoke_test");
+    fs.mkdirSync(path.dirname(vf), { recursive: true });
+    fs.writeFileSync(vf, JSON.stringify(rec(lines0[0].voice.say)));
+    const madeOne = core.storyChecklist(storyNow, proj).items.find((i) => i.found === "voice/arrival")?.do;
+    fs.writeFileSync(vf, JSON.stringify(rec("[shouts] Here it is!")));
+    const staleOne = core.storyChecklist(storyNow, proj).items.find((i) => i.found === "voice/arrival")?.do;
+    check(/^Voice 2 of the 3 lines/.test(madeOne ?? "") && /1 changed since its take/.test(staleOne ?? ""), "the voice item counts takes from EDGEwave's voice.json, and a changed line's take as out of date", `${madeOne} / ${staleOne}`);
+    const every = core.assignVoiceIds(storyNow, true);
+    const after = core.readStory(every.text).story;
+    check(every.added === 2 && core.storyLines(after).every((l) => l.voice?.id), "preparing for voicing gives every line a voice id, and nothing else", `${every.added} added`);
   } finally {
     fs.rmSync(proj, { recursive: true, force: true });
   }

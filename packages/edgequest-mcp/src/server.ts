@@ -16,7 +16,8 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
   BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
-  readStory, sceneMarkdown, storyChecklist, storyboard, storyboardMarkdown, usedBy, vscodeUserSettings, type QuestIndex, type SettingsReader,
+  assignVoiceIds, edgewaveLines, hasPrompt, readStory, readVoiceRecord, sceneMarkdown, storyChecklist, storyLines, storyboard, storyboardMarkdown, takeStatus, usedBy,
+  voiceArchiveDir, voiceFile, vscodeUserSettings, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
 declare const __VERSION__: string;
@@ -251,11 +252,55 @@ server.registerTool(
       const parts: string[] = [];
       for (const f of files) {
         if (!fs.existsSync(f)) throw new Error(`No such file: ${f}`);
-        const c = storyChecklist(fs.readFileSync(f, "utf8"));
+        const c = storyChecklist(fs.readFileSync(f, "utf8"), path.dirname(f));
         parts.push(`## ${path.basename(f)}\n\n${checklistMarkdown(c.items)}` +
           (c.current ? "" : `\n\nThe story file has ${c.problems.length} problem(s), so the stand-ins in it were not looked for: ${c.problems.slice(0, 5).map((p) => `${p.at}: ${p.message}`).join(" ")}`));
       }
       return text(parts.join("\n\n"));
+    } catch (e) {
+      return failure(e);
+    }
+  },
+);
+
+server.registerTool(
+  "quest_voice",
+  {
+    description:
+      "A story file's spoken lines, each with how it is spoken (voice: direction, and say with ElevenLabs v3 [tags]) and its take's status from EDGEwave's voice.json: none, made, or stale (the line changed since). " +
+      "Gives the lines in the shape EDGEwave's voice_lines takes, with the project, quest and archiveDir to pass it; voice_lines with redo and one line regenerates that line. " +
+      "A line's id is stable only once it has a voice id: prepare: true writes one into every line of the story file first (comments kept). Make the quest after voicing so the checklist updates.",
+    inputSchema: {
+      story: z.string().describe("A story file, <project>\\<id>.quest.yaml."),
+      scene: z.string().optional().describe("Only this scene's lines."),
+      prepare: z.boolean().default(false).describe("Write a voice id into every line that has none, so takes stay on their lines."),
+    },
+  },
+  async ({ story: file, scene, prepare }) => {
+    try {
+      let src = fs.readFileSync(file, "utf8");
+      if (prepare) {
+        const ids = assignVoiceIds(src, true);
+        if (ids.added) { src = ids.text; fs.writeFileSync(file, src, "utf8"); }
+      }
+      const read = readStory(src);
+      if (!read.story) return text(`The story file has problems:\n${read.problems.map((x) => `- ${x.line ? `line ${x.line}, ` : ""}${x.at}: ${x.message}`).join("\n")}`);
+      const project = path.dirname(file);
+      const record = readVoiceRecord(project, read.story.id);
+      let lines = storyLines(read.story);
+      if (scene) {
+        if (!read.story.scenes.has(scene)) throw new Error(`No scene "${scene}" in the story. Scenes: ${[...read.story.scenes.keys()].join(", ")}.`);
+        lines = lines.filter((l) => l.scene === scene);
+      }
+      const status = lines.map((l) => takeStatus(l, record));
+      return text({
+        quest: read.story.id,
+        project,
+        archiveDir: voiceArchiveDir(read.story),
+        voiceFile: record ? voiceFile(project, read.story.id) : "none yet",
+        summary: `${lines.length} lines: ${status.filter((s) => s === "made").length} with a current take, ${status.filter((s) => s === "stale").length} changed since their take, ${status.filter((s) => s === "none").length} with none; ${lines.filter((l) => !hasPrompt(l)).length} without a voice prompt; ${lines.filter((l) => !l.voice?.id).length} without a stable id.`,
+        lines: edgewaveLines(lines).map((l, k) => ({ ...l, status: status[k], stable: !!lines[k].voice?.id })),
+      });
     } catch (e) {
       return failure(e);
     }

@@ -14,7 +14,8 @@
 // A stand-in always keeps the quest playable: open items never stop a quest from playing (agreed 2026-10-22).
 
 import { isMap, isScalar, isSeq, parseDocument, YAMLMap } from "yaml";
-import type { SceneItem, Story } from "./story";
+import type { Story } from "./story";
+import { hasPrompt, sceneLines, takeStatus, type VoiceRecord } from "./voice";
 
 export interface ChecklistItem {
   /** What to do, in plain words. */
@@ -39,17 +40,31 @@ export interface FoundItem {
 /** The template's journal description; a quest still showing it needs its own. */
 export const TemplateDescription = "What the journal says about this quest.";
 
-const countLines = (items: SceneItem[]): number =>
-  items.reduce((n, it) => n + (it.kind === "line" ? 1 : it.kind === "choice" ? it.options.reduce((m, o) => m + countLines(o.then), 0) : 0), 0);
+const lines = (n: number) => `${n} line${n === 1 ? "" : "s"}`;
 
-/** The stand-ins in a story. */
-export function findStandIns(story: Story): FoundItem[] {
+/** The stand-ins in a story. With EDGEwave's record, a scene's voice item counts the lines with a current
+ *  take, and ticks itself once every line has one. */
+export function findStandIns(story: Story, record?: VoiceRecord): FoundItem[] {
   const found: FoundItem[] = [];
   found.push({ found: "description", do: "Write the quest's description: the journal still shows the template's.", settled: story.description !== TemplateDescription });
   for (const sc of story.scenes.values()) {
-    const n = countLines(sc.items);
-    // Lines are unvoiced until Q4 (EDGEwave); the item then ticks itself once each line has its voice files.
-    if (n) found.push({ found: `voice/${sc.name}`, do: `Voice the ${n} line${n === 1 ? "" : "s"} in the scene ${sc.name}. Until then ${n === 1 ? "it shows" : "they show"} as text only.`, tool: "EDGEwave", settled: false });
+    const all = sceneLines(story, sc);
+    const n = all.length;
+    if (!n) continue;
+    const unprompted = all.filter((l) => !hasPrompt(l)).length;
+    found.push({ found: `voice-prompt/${sc.name}`, do: `Write how the ${lines(unprompted)} in the scene ${sc.name} ${unprompted === 1 ? "is" : "are"} spoken (voice: with direction and say), for text-to-speech.`, settled: !unprompted });
+    const status = all.map((l) => takeStatus(l, record));
+    const made = status.filter((s) => s === "made").length, stale = status.filter((s) => s === "stale").length;
+    const todo = n - made;
+    const until = `Until then ${todo === 1 ? "it shows" : "they show"} as text only.`;
+    found.push({
+      found: `voice/${sc.name}`,
+      do: made || stale
+        ? `Voice ${todo} of the ${lines(n)} in the scene ${sc.name}${stale ? ` (${stale} changed since ${stale === 1 ? "its take" : "their takes"})` : ""}. ${until}`
+        : `Voice the ${lines(n)} in the scene ${sc.name}. ${until}`,
+      tool: "EDGEwave",
+      settled: !todo,
+    });
   }
   return found;
 }

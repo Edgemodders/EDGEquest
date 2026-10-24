@@ -37,6 +37,7 @@
 
 import { parseDocument } from "yaml";
 import { findStandIns, readChecklist, syncChecklist, TemplateDescription, type ChecklistItem } from "./checklist";
+import { readVoiceRecord, type LineVoice } from "./voice";
 
 export type QuestType = "side" | "minor";
 
@@ -77,7 +78,7 @@ export interface Beat {
 }
 
 export type SceneItem =
-  | { kind: "line"; speaker: string; text: string }
+  | { kind: "line"; speaker: string; text: string; voice?: LineVoice }
   | { kind: "choice"; options: { text: string; then: SceneItem[] }[] }
   | { kind: "set"; fact: string; value: number; add: boolean }
   /** Ends the scene and goes on to this beat. */
@@ -189,6 +190,27 @@ export function readStory(text: string): StoryRead {
   const scenes = new Map<string, SceneSpec>();
   const rawScenes = (raw.scenes ?? {}) as Record<string, unknown>;
   const goes: { beat: string; path: (string | number)[]; at: string }[] = []; // checked once the beats are read
+  const voiceIds = new Map<string, string>(); // id -> where, so no two lines share one
+  const readVoice = (v: unknown, p: (string | number)[], where: string): LineVoice | undefined => {
+    if (v === null || v === undefined) return {}; // an empty voice: gets its id when the quest is made
+    if (typeof v !== "object" || Array.isArray(v)) { add(p, where, "voice: says how the line is spoken: voice: { direction: Quiet and tired., say: \"[sighs] Long day.\" }"); return undefined; }
+    const o = v as Record<string, unknown>;
+    for (const k of Object.keys(o)) if (!["id", "direction", "say"].includes(k)) add([...p, k], where, `Unknown key "${k}" in voice. Keys: direction (how it is spoken, in plain words), say (the line as spoken, with [tags]), id (written by EDGEquest).`);
+    const voice: LineVoice = {};
+    if (o.id !== undefined) {
+      const id = String(o.id);
+      if (!/^[a-z0-9]{2,16}$/.test(id)) add([...p, "id"], where, `The voice id "${id}" must be 2 to 16 lower case letters and digits. EDGEquest writes it; a take is kept by it.`);
+      else if (voiceIds.has(id)) add([...p, "id"], where, `Two lines have the voice id "${id}" (also ${voiceIds.get(id)}). Remove this one; making the quest gives the line a new one.`);
+      voiceIds.set(id, where);
+      voice.id = id;
+    }
+    for (const k of ["direction", "say"] as const) {
+      if (o[k] === undefined || o[k] === null) continue;
+      if (typeof o[k] !== "string" || !(o[k] as string).trim()) add([...p, k], where, `voice ${k} is text.`);
+      else voice[k] = (o[k] as string).trim();
+    }
+    return voice;
+  };
   const readItems = (list: unknown, path: (string | number)[], at: string, speakers: Set<string>): SceneItem[] => {
     const items: SceneItem[] = [];
     if (!Array.isArray(list)) { add(path, at, "A scene is a list of lines (V: text), choices, facts to set and go: <beat>."); return items; }
@@ -210,10 +232,11 @@ export function readStory(text: string): StoryRead {
         const f = readFact(o.set);
         if (!f) add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }.");
         else items.push({ kind: "set", ...f });
-      } else if (keys.length === 1) {
-        const speaker = keys[0];
+      } else if (keys.filter((k) => k !== "voice").length === 1) {
+        const speaker = keys.find((k) => k !== "voice")!;
         if (!speakers.has(speaker)) { add(p, where, `"${speaker}" cannot speak in this scene. Speakers here: ${[...speakers].join(", ")}.`); return; }
-        items.push({ kind: "line", speaker, text: String(o[speaker] ?? "").trim() });
+        const voice = "voice" in o ? readVoice(o.voice, [...p, "voice"], where) : undefined;
+        items.push({ kind: "line", speaker, text: String(o[speaker] ?? "").trim(), ...(voice ? { voice } : {}) });
         if (!String(o[speaker] ?? "").trim()) add(p, where, `${speaker}'s line is empty.`);
       } else add(p, where, `One line per item: ${keys.join(", ")} are in one item.`);
     });
@@ -345,15 +368,17 @@ export function readStory(text: string): StoryRead {
 }
 
 /** A story file's checklist as the next make would leave it, without writing anything: the items written in
- *  todo: plus the stand-ins found now. A story file with problems gives only what todo: says. */
-export function storyChecklist(text: string): { items: ChecklistItem[]; problems: StoryProblem[]; current: boolean } {
+ *  todo: plus the stand-ins found now; with the project, voice takes count from EDGEwave's record. A story
+ *  file with problems gives only what todo: says. */
+export function storyChecklist(text: string, project?: string): { items: ChecklistItem[]; problems: StoryProblem[]; current: boolean } {
   const read = readStory(text);
   if (!read.story) {
     let raw: unknown;
     try { raw = (parseDocument(text).toJS() as Record<string, unknown> | null)?.todo; } catch { raw = undefined; }
     return { items: readChecklist(raw).items, problems: read.problems, current: false };
   }
-  return { items: syncChecklist(text, findStandIns(read.story)).items, problems: [], current: true };
+  const record = project ? readVoiceRecord(project, read.story.id) : undefined;
+  return { items: syncChecklist(text, findStandIns(read.story, record)).items, problems: [], current: true };
 }
 
 function readFact(v: unknown): { fact: string; value: number; add: boolean } | undefined {
@@ -406,6 +431,10 @@ beats:                    # the quest's beats in order; a choice can go: to anot
 scenes:
   arrival:
     - V: Here it is.
+      # how the line is spoken, for text-to-speech (EDGEwave)
+      voice:
+        direction: Quiet and a little unsure, thinking aloud.
+        say: "[quietly] Here it is."
     - choice:
         Look around:
           - V: Let's see what's here.
