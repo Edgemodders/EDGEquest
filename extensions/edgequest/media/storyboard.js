@@ -43,7 +43,7 @@
       <div class="kind">Storyboard</div>
       <h1>${esc(model.title)}</h1>
       <div class="muted">${model.id ? `<code>${esc(model.id)}</code>` : ""}${model.description ? ` · ${esc(model.description)}` : ""}</div>
-      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-yaml="0">Open YAML</button></div>
+      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-act="make" title="Make the quest's game files from this story (saving makes them too)">Make</button><button data-act="made" title="The game files made from this story, in plain words">Made files</button><button data-yaml="0">Open YAML</button></div>
     </header>`;
   }
 
@@ -271,6 +271,8 @@
     else if (act === "rename") post({ type: "rename", beat: t.dataset.beat });
     else if (act === "delete") post({ type: "delete", beat: t.dataset.beat });
     else if (act === "convert") post({ type: "convert" });
+    else if (act === "make") post({ type: "make" });
+    else if (act === "made") post({ type: "made" });
     else if (act === "generate") post({ type: "generate", scene: t.dataset.scene, line: t.dataset.line ? JSON.parse(t.dataset.line) : undefined });
   });
   app.addEventListener("dblclick", (e) => {

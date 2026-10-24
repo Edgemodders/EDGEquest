@@ -45,7 +45,9 @@
     "onCommand:edgequest.open",
     "onCommand:edgequest.check",
     "onCustomEditor:edgequest.storyboard",
-    "onCommand:edgequest.openStoryboard"
+    "onCommand:edgequest.openStoryboard",
+    "onCommand:edgequest.make",
+    "onCommand:edgequest.madeFiles"
   ],
   "contributes": {
     "viewsContainers": {
@@ -131,6 +133,17 @@
         "title": "Open Storyboard",
         "category": "EDGEquest",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "edgequest.make",
+        "title": "Make Quest",
+        "category": "EDGEquest",
+        "icon": "$(run)"
+      },
+      {
+        "command": "edgequest.madeFiles",
+        "title": "Made Files...",
+        "category": "EDGEquest"
       }
     ],
     "menus": {
@@ -164,6 +177,14 @@
         {
           "command": "edgequest.openStoryboard",
           "when": "resourceFilename =~ /\\.quest\\.yaml$/"
+        },
+        {
+          "command": "edgequest.make",
+          "when": "resourceFilename =~ /\\.quest\\.yaml$/"
+        },
+        {
+          "command": "edgequest.madeFiles",
+          "when": "resourceFilename =~ /\\.quest\\.yaml$/"
         }
       ],
       "explorer/context": [
@@ -177,6 +198,11 @@
         {
           "command": "edgequest.openStoryboard",
           "when": "resourceFilename =~ /\\.quest\\.yaml$/ && activeCustomEditorId != edgequest.storyboard",
+          "group": "navigation"
+        },
+        {
+          "command": "edgequest.make",
+          "when": "resourceFilename =~ /\\.quest\\.yaml$/",
           "group": "navigation"
         }
       ]
@@ -198,6 +224,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "DOTNET_ROOT for the bridge, when .NET 10 is installed per user. Empty: use REDcode's `redcode.dotnetRoot`."
+        },
+        "edgequest.makeOnSave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Make a quest's game files each time its story file (`<id>.quest.yaml`) is saved. Problems go to the Problems panel. Off: use **EDGEquest: Make Quest**."
         }
       }
     },

@@ -2,9 +2,12 @@
 // Finds the game and REDbridge as EDGEmat does, uses REDcode's running bridge when REDcode is active
 // with the same game, and builds the quest index from the user's game in the background.
 
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
-import { BridgeClient, buildIndex, checkMarkdown, checkQuestMod, defaultCacheDir, modFromArchive, modFromFolder, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
-import { QuestPages } from "./questPage";
+import { readStory, BridgeClient, buildIndex, checkMarkdown, checkQuestMod, defaultCacheDir, modFromArchive, modFromFolder, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
+import { isStoryFile, madeFiles, QuestMaker } from "./making";
+import { openRaw, QuestPages } from "./questPage";
 import { QuestTree } from "./questTree";
 import { StoryboardEditor } from "./storyboard";
 
@@ -198,6 +201,28 @@ async function checkMod(target?: vscode.Uri): Promise<void> {
   });
 }
 
+/** Projects whose made files were opened: a made phase's scenes are game paths inside the project. */
+const madeRoots = new Set<string>();
+
+/** The file on disk a path stands for: itself when it is one, else a project's own file under source/archive. */
+function localFile(p: string): string | undefined {
+  if (/^[a-z]:[\\/]/i.test(p)) return p;
+  for (const root of madeRoots) {
+    const f = path.join(root, "source", "archive", p);
+    if (fs.existsSync(f)) return f;
+  }
+  return undefined;
+}
+
+/** The story file a command is about: the one given, or the active editor's or Storyboard's. */
+function storyTarget(uri?: vscode.Uri): vscode.Uri | undefined {
+  if (uri && isStoryFile(uri)) return uri;
+  const editor = vscode.window.activeTextEditor?.document.uri;
+  if (editor && isStoryFile(editor)) return editor;
+  const tab = vscode.window.tabGroups.activeTabGroup.activeTab?.input as { uri?: vscode.Uri } | undefined;
+  return tab?.uri && isStoryFile(tab.uri) ? tab.uri : undefined;
+}
+
 async function setGameFolder(): Promise<void> {
   const picked = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, title: "Your Cyberpunk 2077 folder (the one holding bin, archive and r6)" });
   const dir = picked?.[0]?.fsPath;
@@ -212,10 +237,16 @@ export function activate(context: vscode.ExtensionContext): void {
   tree = new QuestTree();
   view = vscode.window.createTreeView("edgequest.gameQuests", { treeDataProvider: tree, showCollapseAll: true });
   pages = new QuestPages({
-    json: async (gamePath) => JSON.parse((await (await bridgeNow()).toJson(gamePath)).json ?? "null"),
+    json: async (gamePath) => {
+      const b = await bridgeNow();
+      const file = localFile(gamePath);
+      return JSON.parse((file ? await b.fileToJson(file) : await b.toJson(gamePath)).json ?? "null");
+    },
+    local: localFile,
     index: () => index,
     log,
   });
+  const maker = new QuestMaker({ bridge: bridgeNow, index: () => index, log });
   context.subscriptions.push(
     output,
     view,
@@ -226,7 +257,33 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("edgequest.find", findQuest),
     vscode.commands.registerCommand("edgequest.check", checkMod),
     vscode.commands.registerCommand("edgequest.open", (gamePath: string) => pages.open(gamePath)),
+    maker,
     vscode.window.registerCustomEditorProvider(StoryboardEditor.viewType, new StoryboardEditor(context, log), { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (isStoryFile(doc.uri) && vscode.workspace.getConfiguration("edgequest").get<boolean>("makeOnSave", true)) void maker.make(doc.uri);
+    }),
+    vscode.commands.registerCommand("edgequest.make", async (uri?: vscode.Uri) => {
+      const target = storyTarget(uri);
+      if (!target) return void vscode.window.showInformationMessage("Make Quest works on a story file (<id>.quest.yaml): open one first.");
+      const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === target.toString());
+      // Saving makes the quest already when making on save is on.
+      if (doc?.isDirty && (await doc.save()) && vscode.workspace.getConfiguration("edgequest").get<boolean>("makeOnSave", true)) return;
+      await maker.make(target, true);
+    }),
+    vscode.commands.registerCommand("edgequest.madeFiles", async (uri?: vscode.Uri) => {
+      const target = storyTarget(uri);
+      if (!target) return;
+      const file = target.fsPath;
+      const id = readStory(fs.readFileSync(file, "utf8")).story?.id ?? path.basename(file).replace(/\.quest\.yaml$/i, "");
+      const files = madeFiles(file, id);
+      if (!files.length) return void vscode.window.showInformationMessage(`${path.basename(file)} has not been made yet: save it, or run Make Quest.`);
+      madeRoots.add(path.dirname(file));
+      const pick = await vscode.window.showQuickPick(files.map((f) => ({ label: path.basename(f), description: path.relative(path.dirname(file), path.dirname(f)), file: f })), { title: `Made from ${path.basename(file)}`, placeHolder: "A phase or scene opens in plain words; the rest open as they are" });
+      if (!pick) return;
+      if (/\.(questphase|quest|scene)$/i.test(pick.file)) return void pages.open(pick.file);
+      if (/\.(xl|yaml)$/i.test(pick.file)) return void vscode.window.showTextDocument(vscode.Uri.file(pick.file));
+      void openRaw(pick.file);
+    }),
     vscode.commands.registerCommand("edgequest.openStoryboard", (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri;
       if (target) void vscode.commands.executeCommand("vscode.openWith", target, StoryboardEditor.viewType);

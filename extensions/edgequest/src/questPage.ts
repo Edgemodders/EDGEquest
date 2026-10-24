@@ -6,8 +6,10 @@ import * as vscode from "vscode";
 import { questOf, readQuestFile, readScene, sceneOrder, steps, summarize, usedBy, type QuestIndex, type SceneFile, type Step } from "./core";
 
 export interface PageHost {
-  /** The file's WolvenKit JSON, by game path. */
+  /** The file's WolvenKit JSON, by game path (or a file on disk: a quest EDGEquest made in a project). */
   json(gamePath: string): Promise<unknown>;
+  /** The file on disk a path stands for, when it is a project's own file rather than the game's. */
+  local?(gamePath: string): string | undefined;
   index(): QuestIndex | undefined;
   log(line: string): void;
 }
@@ -37,7 +39,7 @@ export class QuestPages {
       this.panel.webview.onDidReceiveMessage((m: { open?: string; raw?: string; back?: boolean; copy?: string }) => {
         if (m.open) void this.open(m.open, true);
         else if (m.back && this.history.length) void this.open(this.history.pop()!, false);
-        else if (m.raw) void openRaw(m.raw);
+        else if (m.raw) void openRaw(this.host.local?.(m.raw) ?? m.raw);
         else if (m.copy) void vscode.env.clipboard.writeText(m.copy).then(() => vscode.window.setStatusBarMessage(`Copied ${m.copy}`, 2000));
       });
     }
@@ -164,12 +166,12 @@ function link(gamePath: string, label?: string): string {
   return `<a data-open="${esc(gamePath)}" title="${esc(gamePath)}">${esc(label ?? gamePath.slice(gamePath.lastIndexOf("\\") + 1))}</a>`;
 }
 
-/** Opens a game file in REDcode's CR2W editor, read-only. */
+/** Opens a game file in REDcode's CR2W editor, read-only; a file on disk (a project's) opens as itself. */
 export async function openRaw(gamePath: string): Promise<void> {
   if (!vscode.extensions.getExtension("edgemodders.redcode-cyberpunk")) {
     void vscode.window.showInformationMessage("Raw files open in REDcode's CR2W editor. Install REDcode (edgemodders.redcode-cyberpunk) to see the raw nodes.");
     return;
   }
-  const uri = vscode.Uri.from({ scheme: "redcode-game", path: "/" + gamePath.replace(/\\/g, "/") });
+  const uri = /^[a-z]:[\\/]/i.test(gamePath) ? vscode.Uri.file(gamePath) : vscode.Uri.from({ scheme: "redcode-game", path: "/" + gamePath.replace(/\\/g, "/") });
   await vscode.commands.executeCommand("vscode.openWith", uri, "redcode.cr2w");
 }

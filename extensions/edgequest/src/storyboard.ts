@@ -23,7 +23,9 @@ type Message =
   | { type: "voice"; line: Path; direction: string; say: string }
   | { type: "todo"; index: number; done: boolean }
   | { type: "convert" }
-  | { type: "generate"; scene: string; line?: Path };
+  | { type: "generate"; scene: string; line?: Path }
+  | { type: "make" }
+  | { type: "made" };
 
 /** The part of EDGEwave's API (version 1, the EDGEwave #5 contract) EDGEquest uses. */
 interface EDGEwaveApi {
@@ -104,6 +106,8 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
       case "todo": return this.edit(document, (t) => setTodoDone(t, m.index, m.done));
       case "convert": return this.edit(document, convertToBeats);
       case "generate": return this.generate(document, m.scene, m.line);
+      case "make": return void vscode.commands.executeCommand("edgequest.make", document.uri);
+      case "made": return void vscode.commands.executeCommand("edgequest.madeFiles", document.uri);
     }
   }
 
