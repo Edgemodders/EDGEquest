@@ -1,6 +1,9 @@
 /* The Storyboard: VS Code's theme colours (the REDnode HUD theme by default), cards on a board. */
-body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 0 1.2em 3em; margin: 0; }
-header { position: sticky; top: 0; z-index: 2; background: var(--vscode-editor-background); padding: .8em 0 .6em; border-bottom: 1px solid var(--vscode-panel-border); }
+html, body { height: 100%; }
+body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 0; margin: 0; overflow: hidden; }
+/* Three rows: the header, the board pane (its height set by the splitter), the beat page scrolling below. */
+#app { display: flex; flex-direction: column; height: 100vh; }
+header { flex: none; padding: .8em 1.2em .6em; border-bottom: 1px solid var(--vscode-panel-border); }
 h1 { font-size: 1.4em; margin: .1em 0; }
 h2 { font-size: 1em; text-transform: uppercase; letter-spacing: .08em; color: var(--vscode-textLink-foreground); margin: 1.4em 0 .5em; }
 h3 { font-size: 1em; margin: 1em 0 .3em; display: flex; gap: .8em; align-items: baseline; }
@@ -16,8 +19,18 @@ button.small { padding: .05em .6em; font-size: .9em; }
 .problems li { margin: .2em 0; }
 a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; } a:hover { text-decoration: underline; }
 
-.board-wrap { overflow-x: auto; margin-top: 1em; }
-.board { position: relative; }
+.pane { flex: none; position: relative; overflow: hidden; }
+.viewport { position: absolute; inset: 0; overflow: hidden; cursor: grab; user-select: none; touch-action: none; }
+.viewport.panning { cursor: grabbing; }
+.viewport.panning .card { cursor: grabbing; }
+.viewport .empty { margin: 1em 1.2em; }
+.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.zoom { position: absolute; right: .6em; bottom: .6em; display: flex; gap: 2px; opacity: .7; z-index: 1; }
+.zoom:hover { opacity: 1; }
+.zoom button { min-width: 2.2em; padding: .15em .5em; }
+.splitter { flex: none; height: 5px; cursor: row-resize; background: var(--vscode-panel-border); }
+.splitter:hover, .splitter.dragging { background: var(--vscode-focusBorder); }
+.detail { flex: 1 1 auto; overflow: auto; padding: 0 1.2em 3em; }
 .board svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .arrow { fill: none; stroke: var(--vscode-descriptionForeground); stroke-width: 1.5; }
 .arrow.choice { stroke: var(--vscode-textLink-foreground); }
@@ -38,7 +51,7 @@ a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: 
 .badge { font-size: .8em; padding: 0 .4em; border-radius: 2px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .badge.ok { background: #8ac92633; color: inherit; } .badge.fail { background: #c94f6d33; color: inherit; } .badge.todo { background: #c9a22733; color: inherit; }
 
-.beat { margin-top: 1.5em; border-top: 1px solid var(--vscode-panel-border); }
+.beat { margin-top: .4em; }
 .beat .facts { color: var(--vscode-descriptionForeground); margin: .3em 0; }
 .steps li { margin: .15em 0; }
 .row { padding: .25em .4em; border-left: 2px solid var(--vscode-panel-border); margin: .15em 0; }

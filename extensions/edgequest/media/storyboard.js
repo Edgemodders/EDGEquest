@@ -4,12 +4,20 @@
   const vscode = acquireVsCodeApi();
   const app = document.getElementById("app");
   let model;
-  let selected = (vscode.getState() || {}).selected;
+  // The page's own state, kept while the tab is hidden: the beat shown, the board's pan and zoom, the board
+  // pane's height.
+  const saved = vscode.getState() || {};
+  let selected = saved.selected;
+  let view = saved.view; // { x, y, z }; unset: fit the story on first draw
+  let paneH = saved.paneH;
+  const save = () => vscode.setState({ selected, view, paneH });
 
   const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const post = (m) => vscode.postMessage(m);
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const StatusWords = { none: "no take", made: "take made", stale: "changed since its take" };
+  const ZoomMin = 0.25, ZoomMax = 2.5;
 
   window.addEventListener("message", (e) => {
     if (e.data.type !== "model") return;
@@ -19,25 +27,136 @@
   });
 
   function render() {
-    const keepY = window.scrollY;
+    const keepY = app.querySelector(".detail")?.scrollTop ?? 0;
     const focus = document.activeElement?.dataset?.field ? `${document.activeElement.dataset.line}|${document.activeElement.dataset.field}` : "";
-    app.innerHTML = header() + board() + beatPage() + checklist();
-    window.scrollTo(0, keepY);
+    app.innerHTML = header() + boardPane() +
+      `<div class="splitter" title="Drag to resize the board. Double-click to fit it to the story."></div>` +
+      `<div class="detail">${notices()}${beatPage()}${checklist()}</div>`;
+    app.querySelector(".detail").scrollTop = keepY;
+    sizePane();
+    applyView();
     if (focus) app.querySelector(`[data-line="${CSS.escape(focus.split("|")[0])}"][data-field="${focus.split("|")[1]}"]`)?.focus();
   }
 
   function header() {
-    const problems = model.problems.length
-      ? `<div class="problems"><b>${plural(model.problems.length, "problem")} in the story file.</b> The board comes back once they are fixed in the YAML.<ul>${model.problems.map((p) => `<li>${p.line ? `<a data-yaml="${p.line}">line ${p.line}</a>, ` : ""}${esc(p.at)}: ${esc(p.message)}</li>`).join("")}</ul></div>`
-      : "";
-    const steps = model.usesSteps ? `<div class="banner">This story lists <code>steps:</code> from before beats. It still works; convert it to beats to edit it here. <button data-act="convert" class="small">Convert to beats</button></div>` : "";
     return `<header>
       <div class="kind">Storyboard</div>
       <h1>${esc(model.title)}</h1>
       <div class="muted">${model.id ? `<code>${esc(model.id)}</code>` : ""}${model.description ? ` · ${esc(model.description)}` : ""}</div>
       <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-yaml="0">Open YAML</button></div>
-    </header>${steps}${problems}`;
+    </header>`;
   }
+
+  function notices() {
+    const problems = model.problems.length
+      ? `<div class="problems"><b>${plural(model.problems.length, "problem")} in the story file.</b> The board comes back once they are fixed in the YAML.<ul>${model.problems.map((p) => `<li>${p.line ? `<a data-yaml="${p.line}">line ${p.line}</a>, ` : ""}${esc(p.at)}: ${esc(p.message)}</li>`).join("")}</ul></div>`
+      : "";
+    const steps = model.usesSteps ? `<div class="banner">This story lists <code>steps:</code> from before beats. It still works; convert it to beats to edit it here. <button data-act="convert" class="small">Convert to beats</button></div>` : "";
+    return steps + problems;
+  }
+
+  function boardPane() {
+    const zoom = `<div class="zoom">
+      <button data-zoom="in" title="Zoom in (mouse wheel)">+</button><button data-zoom="out" title="Zoom out (mouse wheel)">−</button>
+      <button data-zoom="fit" title="Fit the whole story">Fit</button><button data-zoom="one" title="Actual size">1:1</button></div>`;
+    return `<div class="pane"><div class="viewport">${model.board ? board() : '<p class="muted empty">The board comes back once the story file\'s problems are fixed.</p>'}</div>${model.board ? zoom : ""}</div>`;
+  }
+
+  // ---- pan, zoom and the board pane's height ---------------------------------------------------------
+
+  const viewport = () => app.querySelector(".viewport");
+  const clampH = (h) => clamp(h, 120, Math.max(140, window.innerHeight - 150));
+
+  function sizePane() {
+    const pane = app.querySelector(".pane");
+    if (!pane) return;
+    if (paneH === undefined) paneH = clampH(Math.min(model.board?.height ?? 160, window.innerHeight * 0.5));
+    pane.style.height = `${clampH(paneH)}px`;
+  }
+
+  function fitView() {
+    const vp = viewport(), b = model.board;
+    const z = clamp(Math.min(1, vp.clientWidth / b.width, vp.clientHeight / b.height), ZoomMin, ZoomMax);
+    return { z, x: Math.max(0, (vp.clientWidth - b.width * z) / 2), y: Math.max(0, (vp.clientHeight - b.height * z) / 2) };
+  }
+
+  function applyView() {
+    const board = app.querySelector(".board");
+    if (!board) return;
+    if (!view) view = fitView();
+    board.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+  }
+
+  /** Zooms by a factor, keeping the board's point under (mx, my) where it is. */
+  function zoomAt(factor, mx, my) {
+    const z = clamp(view.z * factor, ZoomMin, ZoomMax);
+    view = { z, x: mx - ((mx - view.x) * z) / view.z, y: my - ((my - view.y) * z) / view.z };
+    applyView();
+    save();
+  }
+
+  /** Brings a card into view when it is outside it. */
+  function showCard(name) {
+    const p = model.board?.pos[name], vp = viewport();
+    if (!p || !vp || !view) return;
+    const { cardW: W, cardH: H } = model.board;
+    const left = view.x + p.x * view.z, top = view.y + p.y * view.z;
+    if (left >= 0 && top >= 0 && left + W * view.z <= vp.clientWidth && top + H * view.z <= vp.clientHeight) return;
+    view = { ...view, x: vp.clientWidth / 2 - (p.x + W / 2) * view.z, y: vp.clientHeight / 2 - (p.y + H / 2) * view.z };
+    applyView();
+    save();
+  }
+
+  app.addEventListener("wheel", (e) => {
+    const vp = e.target.closest(".viewport");
+    if (!vp || !model.board) return;
+    e.preventDefault();
+    const r = vp.getBoundingClientRect();
+    zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  // Left-drag pans the board. A press that does not move is still a click, so a card is still chosen by
+  // clicking it and renamed by double-clicking it.
+  let drag, split, swallowClick = false;
+  app.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest(".splitter")) {
+      split = { y: e.clientY, h: clampH(paneH), el: e.target.closest(".splitter") };
+      split.el.setPointerCapture(e.pointerId);
+      split.el.classList.add("dragging");
+      e.preventDefault();
+      return;
+    }
+    const vp = e.target.closest(".viewport");
+    if (vp && model.board) drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, vp, id: e.pointerId };
+  });
+  app.addEventListener("pointermove", (e) => {
+    if (split) {
+      paneH = clampH(split.h + e.clientY - split.y);
+      sizePane();
+      return;
+    }
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) { drag.moved = true; drag.vp.setPointerCapture(drag.id); drag.vp.classList.add("panning"); }
+    view = { ...view, x: drag.vx + dx, y: drag.vy + dy };
+    applyView();
+  });
+  const endDrag = () => {
+    if (split) { split.el.classList.remove("dragging"); split = undefined; save(); }
+    if (drag?.moved) { drag.vp.classList.remove("panning"); swallowClick = true; save(); }
+    drag = undefined;
+  };
+  app.addEventListener("pointerup", endDrag);
+  app.addEventListener("pointercancel", endDrag);
+  app.addEventListener("dblclick", (e) => {
+    if (!e.target.closest(".splitter") || !model.board) return;
+    paneH = clampH(model.board.height * view.z + 12);
+    sizePane();
+    save();
+  });
+  window.addEventListener("resize", () => model && sizePane());
 
   function board() {
     const b = model.board;
@@ -83,11 +202,11 @@
       return `<div class="${cls}" data-beat="${esc(c.beat)}" title="${esc(c.steps.join(", "))}" style="left:${p.x}px;top:${p.y}px;width:${W}px;height:${H}px">
         <div class="name">${esc(c.beat)}</div><div class="title">${esc(c.objective)}</div><div class="meta">${meta}</div></div>`;
     }).join("");
-    return `<div class="board-wrap"><div class="board" style="width:${b.width}px;height:${b.height}px">
+    return `<div class="board" style="width:${b.width}px;height:${b.height}px">
       <svg width="${b.width}" height="${b.height}"><defs>
         <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow-head" d="M0,0 L10,5 L0,10 z"/></marker>
         <marker id="head-choice" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow-head choice" d="M0,0 L10,5 L0,10 z"/></marker>
-      </defs>${paths.join("")}${labels.join("")}${start}</svg>${cards}</div></div>`;
+      </defs>${paths.join("")}${labels.join("")}${start}</svg>${cards}</div>`;
   }
 
   function beatPage() {
@@ -135,10 +254,17 @@
   }
 
   app.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-act],[data-yaml],[data-beat],[data-select]");
+    if (swallowClick) { swallowClick = false; return; } // the end of a pan, not a click
+    const t = e.target.closest("[data-act],[data-yaml],[data-beat],[data-select],[data-zoom]");
     if (!t) return;
+    if (t.dataset.zoom) {
+      const vp = viewport();
+      if (t.dataset.zoom === "fit") { view = fitView(); applyView(); save(); }
+      else zoomAt(t.dataset.zoom === "in" ? 1.25 : t.dataset.zoom === "out" ? 0.8 : 1 / view.z, vp.clientWidth / 2, vp.clientHeight / 2);
+      return;
+    }
     if (t.dataset.yaml !== undefined) return post({ type: "yaml", line: Number(t.dataset.yaml) || undefined });
-    if (t.dataset.select) return select(t.dataset.select);
+    if (t.dataset.select) return select(t.dataset.select, true);
     const act = t.dataset.act;
     if (!act && t.classList.contains("card")) return select(t.dataset.beat);
     if (act === "addBeat") post({ type: "addBeat", after: t.dataset.after });
@@ -165,11 +291,13 @@
     if (e.key === "Enter" && e.target.dataset?.field) e.target.blur();
   });
 
-  function select(name) {
+  /** Shows a beat's page below the board; from a link on a page, its card is brought into view too. */
+  function select(name, fromLink = false) {
     selected = name;
-    vscode.setState({ selected });
+    save();
     render();
-    document.querySelector(".beat")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    app.querySelector(".detail").scrollTop = 0;
+    if (fromLink) showCard(name);
   }
 
   post({ type: "ready" });
