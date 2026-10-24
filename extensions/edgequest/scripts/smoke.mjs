@@ -160,6 +160,12 @@ try {
       "Storyboard edits: add a beat, send a choice to it, rename it, say how a line is spoken, tick an item; comments kept", edited2.problems.map((x) => x.message).join("; ") || b2.arrows.map((a) => `${a.from}>${a.to}`).join());
     const gone = core.readStory(core.deleteBeat(t, added));
     check(gone.problems.length === 1 && /go: "celebrate_the_find" is not one of the beats/.test(gone.problems[0].message), "deleting a beat a choice goes to leaves one problem naming it", gone.problems.map((x) => x.message).join("; "));
+    // What assistants edit with (quest_edit): an option found by its text, any value set by its path.
+    const s0 = core.readStory(storyNow).story;
+    const opt = core.optionPath(s0, "arrival", "Leave");
+    const set = core.readStory(core.setPath(storyNow, ["beats", "leave", "steps"], [{ wait: 1 }, "failed"])).story;
+    check(JSON.stringify(opt) === '["scenes","arrival",1,"choice","Leave"]' && set?.beats.find((b) => b.name === "leave").steps.map((x) => x.kind).join() === "wait,failed",
+      "an option is found by its text, and any value can be set by its path", JSON.stringify(opt));
     const conv = core.readStory(core.convertToBeats("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One   # first\n  - wait: 1\n  - objective: Two\n  - done\n"));
     check(conv.story?.beats.map((b) => `${b.name}:${b.steps.length}`).join() === "01:1,02:1", "Convert to beats turns a steps: list into beats", conv.problems.map((x) => x.message).join("; "));
     const every = core.assignVoiceIds(storyNow, true);

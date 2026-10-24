@@ -3,6 +3,8 @@
 // comments kept. The Storyboard and the MCP tools use them, so an edit means the same in both.
 
 import { isMap, isScalar, isSeq, parseDocument, Pair, Scalar, YAMLMap, YAMLSeq, type Document } from "yaml";
+import type { SceneItem, Story } from "./story";
+import { sceneItemsPath } from "./voice";
 
 export class StoryEditError extends Error {}
 
@@ -129,6 +131,34 @@ export function setLineVoice(text: string, line: Path, voice: { direction?: stri
   }
   if (!map.items.length) item.delete("voice");
   return out(doc);
+}
+
+/** Sets any value by its path in the story file (["beats", "go_home", "steps"]), or removes it when the value
+ *  is undefined: for what the named edits do not cover. The result is checked like any story file. */
+export function setPath(text: string, at: Path, value: unknown): string {
+  const doc = parse(text);
+  if (!at.length) throw new StoryEditError("Give the path of what to set, such as [\"beats\", \"go_home\", \"steps\"].");
+  if (value === undefined) doc.deleteIn(at);
+  else doc.setIn(at, doc.createNode(value));
+  return out(doc);
+}
+
+/** Where a choice's option is in the story file, by the scene and the option's text (the first, at any depth). */
+export function optionPath(story: Story, scene: string, option: string): Path | undefined {
+  const spec = story.scenes.get(scene);
+  if (!spec) return undefined;
+  const find = (items: SceneItem[], at: Path): Path | undefined => {
+    for (const [i, it] of items.entries()) {
+      if (it.kind !== "choice") continue;
+      for (const o of it.options) {
+        if (o.text === option) return [...at, i, "choice", o.text];
+        const deeper = find(o.then, [...at, i, "choice", o.text]);
+        if (deeper) return deeper;
+      }
+    }
+    return undefined;
+  };
+  return find(spec.items, sceneItemsPath(spec));
 }
 
 /** Ticks a checklist item (or unticks it), by its place in todo:. */

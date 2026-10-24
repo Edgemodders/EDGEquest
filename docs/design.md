@@ -105,10 +105,11 @@ Tools are about intent, not file plumbing:
 | `quest_describe` | A quest or phase in plain words: its steps, choices, facts, journal entries and scenes. For a story file, its beats first: the Storyboard in words ("Go home → Find out who left the shard → Keep it: Sell the shard (ends) / Give it back: Return the shard (ends)") | Q1, beats Q2 |
 | `quest_scene` | A scene's lines and choices with speakers and text | Q1 |
 | `quest_check` | Checks a quest's files against each other, in a project or a mod archive, and names what is wrong in plain words | Q1 |
-| `quest_new` | Starts a new quest from a short description, or from a game quest to copy | Q2 |
+| `quest_new` | Starts a new quest in a project: the story file from the template, or from the text an assistant wrote from a description. Copying a game quest comes later | Q2 |
 | `quest_edit` | Adds and changes beats, steps, lines with their voice prompts, choices and where they go, facts and journal entries, by beat name | Q2 |
 | `quest_voice` | A story's lines with their voice prompts and status (no take, take made, out of date, from EDGEwave's `voice.json`), in the shape EDGEwave's `voice_lines` takes, so an assistant can voice or revoice them there | Q2 |
 | `quest_checklist` | What is left for the modder: the quest's checklist, the items EDGEquest found and the ones written in the story file, each with the EDGE tool that can do it. `quest_new` and `quest_edit` return the open items too | Q2 |
+| `quest_make` | Makes a story's game files in its project, checks them with `quest_check` and updates its checklist, as saving does in VS Code. `quest_new` and `quest_edit` can make too | Q2 |
 | `quest_try` | Packs, deploys, and starts the quest or jumps to a step in the running game | Q3 |
 
 ## Phases

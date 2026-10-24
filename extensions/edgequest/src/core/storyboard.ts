@@ -93,9 +93,8 @@ export function storyboardMarkdown(story: Story, board = storyboard(story)): str
   const title = (name: string) => story.beats.find((b: Beat) => b.name === name)?.objective ?? name;
   const out = [`${board.cards.length} beat${board.cards.length === 1 ? "" : "s"}, starting with ${board.cards[0]?.beat ?? "none"}.`, ""];
   board.cards.forEach((c, i) => {
-    const end = c.ending ? ` The quest ${c.ending === "succeeded" ? "succeeds" : "fails"} here.` : "";
     const note = c.unreached ? " Nothing leads here yet." : "";
-    out.push(`${i + 1}. **${c.objective}** (${c.beat}): ${c.steps.join(", ") || "no steps"}.${end}${note}`);
+    out.push(`${i + 1}. **${c.objective}** (${c.beat}): ${c.steps.join(", ") || "no steps"}.${note}`);
     for (const a of board.arrows.filter((x) => x.from === c.beat)) out.push(`   - ${a.choice ? `"${a.choice}" → ` : "then → "}${title(a.to)} (${a.to})`);
   });
   return out.join("\n");

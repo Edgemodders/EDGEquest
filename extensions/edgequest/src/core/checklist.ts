@@ -52,7 +52,7 @@ export function findStandIns(story: Story, record?: VoiceRecord): FoundItem[] {
     const n = all.length;
     if (!n) continue;
     const unprompted = all.filter((l) => !hasPrompt(l)).length;
-    found.push({ found: `voice-prompt/${sc.name}`, do: `Write how the ${lines(unprompted)} in the scene ${sc.name} ${unprompted === 1 ? "is" : "are"} spoken (voice: with direction and say), for text-to-speech.`, settled: !unprompted });
+    found.push({ found: `voice-prompt/${sc.name}`, do: `Write how ${unprompted === n && n > 1 ? "the " : ""}${lines(unprompted)} in the scene ${sc.name} ${unprompted === 1 ? "is" : "are"} spoken (voice: with direction and say), for text-to-speech.`, settled: !unprompted });
     const status = all.map((l) => takeStatus(l, record));
     const made = status.filter((s) => s === "made").length, stale = status.filter((s) => s === "stale").length;
     const todo = n - made;
