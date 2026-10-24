@@ -105,11 +105,16 @@ export function storyboardMarkdown(story: Story, board = storyboard(story)): str
 const CardW = 230, CardH = 104, GapX = 130, GapY = 28, Pad = 24;
 
 type Path = (string | number)[];
+/** Where a row sits for editing: its list's path in the story file, its place there, whether it can move. */
+interface Placed { list: Path; index: number; first: boolean; last: boolean }
+
 export type BoardRow =
-  | { kind: "line"; depth: number; speaker: string; text: string; direction?: string; say?: string; status: TakeStatus; path: Path; id: string }
-  | { kind: "choice"; depth: number }
-  | { kind: "option"; depth: number; text: string; path: Path; go?: string }
-  | { kind: "set"; depth: number; words: string };
+  | ({ kind: "line"; depth: number; speaker: string; text: string; direction?: string; say?: string; status: TakeStatus; path: Path; id: string } & Placed)
+  | ({ kind: "choice"; depth: number; choice: Path } & Placed)
+  | { kind: "option"; depth: number; text: string; path: Path; choice: Path; go?: string; first: boolean; last: boolean }
+  | ({ kind: "set"; depth: number; words: string } & Placed)
+  /** The end of a list: where a new line or choice goes. */
+  | { kind: "add"; depth: number; list: Path; index: number };
 
 /** What the Storyboard draws: the board laid out, a page per beat, the checklist. */
 export interface BoardModel {
@@ -119,7 +124,12 @@ export interface BoardModel {
   problems: { line?: number; at: string; message: string }[];
   usesSteps: boolean;
   board?: Board & { pos: Record<string, { x: number; y: number }>; width: number; height: number; cardW: number; cardH: number };
-  beats: Record<string, { name: string; objective: string; marker?: string; next?: string; steps: string[]; scenes: { name: string; call?: string; rows: BoardRow[]; lines: number }[] }>;
+  beats: Record<string, {
+    name: string; objective: string; marker?: string; next?: string;
+    /** Every step, in words; those after a scene whose every way out goes elsewhere never happen. */
+    steps: { words: string; index: number; first: boolean; last: boolean; never: boolean }[];
+    scenes: { name: string; call?: string; speakers: string[]; rows: BoardRow[]; lines: number }[];
+  }>;
   beatNames: { name: string; objective: string }[];
   checklist: { do: string; done: boolean; tool?: string }[];
   voiced: boolean;
@@ -146,20 +156,26 @@ function sceneRows(story: Story, name: string, record: ReturnType<typeof readVoi
   const lines = sceneLines(story, spec);
   const byPath = new Map(lines.map((l) => [JSON.stringify(l.path), l]));
   const rows: BoardRow[] = [];
-  const walk = (items: SceneItem[], at: Path, depth: number) => items.forEach((it, i) => {
-    const p = [...at, i];
-    if (it.kind === "line") {
-      const l = byPath.get(JSON.stringify(p)) as StoryLine;
-      rows.push({ kind: "line", depth, speaker: it.speaker, text: it.text, direction: it.voice?.direction, say: it.voice?.say, status: takeStatus(l, record), path: p, id: l.id });
-    } else if (it.kind === "choice") {
-      rows.push({ kind: "choice", depth });
-      for (const o of it.options) {
-        const last = o.then[o.then.length - 1];
-        rows.push({ kind: "option", depth: depth + 1, text: o.text, path: [...p, "choice", o.text], go: last?.kind === "go" ? last.beat : undefined });
-        walk(o.then.filter((x) => x.kind !== "go"), [...p, "choice", o.text], depth + 2);
-      }
-    } else if (it.kind === "set") rows.push({ kind: "set", depth, words: `${it.add ? "add" : "set"} ${it.fact}${it.add || it.value !== 1 ? ` ${it.value}` : ""}` });
-  });
+  // Indexes are the items' places in the file's list; a go: is not a row (its option shows it) and stays last.
+  const walk = (items: SceneItem[], at: Path, depth: number) => {
+    const movable = items.filter((x) => x.kind !== "go").length;
+    items.forEach((it, i) => {
+      const p = [...at, i];
+      const placed: Placed = { list: at, index: i, first: i === 0, last: i === movable - 1 };
+      if (it.kind === "line") {
+        const l = byPath.get(JSON.stringify(p)) as StoryLine;
+        rows.push({ kind: "line", depth, speaker: it.speaker, text: it.text, direction: it.voice?.direction, say: it.voice?.say, status: takeStatus(l, record), path: p, id: l.id, ...placed });
+      } else if (it.kind === "choice") {
+        rows.push({ kind: "choice", depth, choice: [...p, "choice"], ...placed });
+        it.options.forEach((o, j) => {
+          const last = o.then[o.then.length - 1];
+          rows.push({ kind: "option", depth: depth + 1, text: o.text, path: [...p, "choice", o.text], choice: [...p, "choice"], go: last?.kind === "go" ? last.beat : undefined, first: j === 0, last: j === it.options.length - 1 });
+          walk(o.then, [...p, "choice", o.text], depth + 2);
+        });
+      } else if (it.kind === "set") rows.push({ kind: "set", depth, words: `${it.add ? "add" : "set"} ${it.fact}${it.add || it.value !== 1 ? ` ${it.value}` : ""}`, ...placed });
+    });
+    rows.push({ kind: "add", depth, list: at, index: movable });
+  };
   walk(spec.items, sceneItemsPath(spec), 0);
   return { rows, lines: lines.length };
 }
@@ -177,10 +193,19 @@ export function boardModel(text: string, file: string): BoardModel {
   const board = storyboard(story, list.items);
   const beats: BoardModel["beats"] = {};
   for (const b of story.beats) {
-    const card = board.cards.find((c) => c.beat === b.name)!;
+    let never = false;
+    const steps = b.steps.map((s, i) => {
+      const row = { words: stepWords(s), index: i, first: i === 0, last: i === b.steps.length - 1, never };
+      if (s.kind === "scene" && alwaysGoes(story.scenes.get(s.scene)?.items ?? [])) never = true;
+      return row;
+    });
+    const scenes = [...new Set(b.steps.flatMap((s) => (s.kind === "scene" ? [s.scene] : [])))];
     beats[b.name] = {
-      name: b.name, objective: b.objective, marker: b.marker, next: b.next, steps: card.steps,
-      scenes: card.scenes.map((s) => ({ name: s, call: story.scenes.get(s)?.call, ...sceneRows(story, s, record) })),
+      name: b.name, objective: b.objective, marker: b.marker, next: b.next, steps,
+      scenes: scenes.map((s) => {
+        const call = story.scenes.get(s)?.call;
+        return { name: s, call, speakers: call ? ["V", call] : ["V"], ...sceneRows(story, s, record) };
+      }),
     };
   }
   return { ...base, title: story.title, id: story.id, description: story.description, board: layOut(story, board), beats, beatNames: story.beats.map((b) => ({ name: b.name, objective: b.objective })), voiced: !!record };

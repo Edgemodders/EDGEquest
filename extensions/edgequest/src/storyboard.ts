@@ -7,7 +7,8 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import {
-  addBeat, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, readStory, renameObjective, sceneLines, setChoiceGo, setLineVoice, setTodoDone,
+  addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption,
+  renameObjective, renameOption, sceneLines, setChoiceGo, setLine, setLineVoice, setTodoDone,
   voiceArchiveDir, StoryEditError,
 } from "./core";
 
@@ -25,7 +26,18 @@ type Message =
   | { type: "convert" }
   | { type: "generate"; scene: string; line?: Path }
   | { type: "make" }
-  | { type: "made" };
+  | { type: "made" }
+  | { type: "insert"; list: Path; index: number; what: "line" | "choice"; speaker?: string }
+  | { type: "move"; list: Path; from: number; to: number }
+  | { type: "remove"; list: Path; index: number; what: string }
+  | { type: "line"; line: Path; speaker?: string; text?: string }
+  | { type: "addOption"; choice: Path }
+  | { type: "renameOption"; choice: Path; option: string; to: string }
+  | { type: "moveOption"; choice: Path; option: string; by: number }
+  | { type: "removeOption"; choice: Path; option: string }
+  | { type: "addStep"; beat: string }
+  | { type: "moveStep"; beat: string; from: number; to: number }
+  | { type: "removeStep"; beat: string; index: number };
 
 /** The part of EDGEwave's API (version 1, the EDGEwave #5 contract) EDGEquest uses. */
 interface EDGEwaveApi {
@@ -108,7 +120,99 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
       case "generate": return this.generate(document, m.scene, m.line);
       case "make": return void vscode.commands.executeCommand("edgequest.make", document.uri);
       case "made": return void vscode.commands.executeCommand("edgequest.madeFiles", document.uri);
+      case "insert": {
+        if (m.what === "line") {
+          const words = await vscode.window.showInputBox({ title: "New line", prompt: `What ${m.speaker ?? "V"} says` });
+          if (!words) return;
+          return this.edit(document, (t) => insertItem(t, m.list, m.index, { [m.speaker ?? "V"]: words }));
+        }
+        const first = await vscode.window.showInputBox({ title: "New choice (1/2)", prompt: "The first option, as the player sees it", placeHolder: "Take the shard" });
+        if (!first) return;
+        const second = await vscode.window.showInputBox({ title: "New choice (2/2)", prompt: "The second option (more can be added after)", placeHolder: "Leave it" });
+        const options: Record<string, unknown[]> = { [first.trim()]: [] };
+        if (second?.trim() && second.trim() !== first.trim()) options[second.trim()] = [];
+        return this.edit(document, (t) => insertItem(t, m.list, m.index, { choice: options }));
+      }
+      case "move": return this.edit(document, (t) => moveItem(t, m.list, m.from, m.to));
+      case "remove": {
+        if (m.what === "choice") {
+          const ok = await vscode.window.showWarningMessage("Delete this choice, with its options and everything in them?", { modal: true }, "Delete");
+          if (ok !== "Delete") return;
+        }
+        return this.edit(document, (t) => removeItem(t, m.list, m.index));
+      }
+      case "line": return this.edit(document, (t) => setLine(t, m.line, { speaker: m.speaker, text: m.text }));
+      case "addOption": {
+        const option = await vscode.window.showInputBox({ title: "New option", prompt: "As the player sees it" });
+        if (!option) return;
+        return this.edit(document, (t) => addOption(t, m.choice, option));
+      }
+      case "renameOption": return this.edit(document, (t) => renameOption(t, m.choice, m.option, m.to));
+      case "moveOption": return this.edit(document, (t) => moveOption(t, m.choice, m.option, m.by));
+      case "removeOption": {
+        const ok = await vscode.window.showWarningMessage(`Delete the option "${m.option}", with everything in it?`, { modal: true }, "Delete");
+        if (ok !== "Delete") return;
+        return this.edit(document, (t) => removeOption(t, m.choice, m.option));
+      }
+      case "addStep": return this.addStep(document, m.beat);
+      case "moveStep": return this.edit(document, (t) => moveItem(t, ["beats", m.beat, "steps"], m.from, m.to));
+      case "removeStep": return this.edit(document, (t) => removeItem(t, ["beats", m.beat, "steps"], m.index));
     }
+  }
+
+  /** Adds a step to a beat, asking what kind; a new step goes before the beat's ending, if it has one. */
+  private async addStep(document: vscode.TextDocument, beat: string): Promise<void> {
+    const story = readStory(document.getText()).story;
+    const b = story?.beats.find((x) => x.name === beat);
+    if (!story || !b) throw new StoryEditError("Fix the story file's problems first: they are listed above the beat's page.");
+    const ending = b.steps.findIndex((s) => s.kind === "done" || s.kind === "failed");
+    const kinds: (vscode.QuickPickItem & { step: string })[] = [
+      { label: "$(location) Arrive at a place", detail: "Waits until V is inside the place's trigger area", step: "arrive" },
+      { label: "$(comment-discussion) Play a scene", detail: "Lines and choices, here or in a new scene", step: "scene" },
+      { label: "$(watch) Wait", detail: "A number of seconds", step: "wait" },
+      { label: "$(symbol-variable) Set a fact", detail: "Remember something for later; the quest's id is put in front", step: "set" },
+      ...(ending < 0 ? [{ label: "$(pass) The quest succeeds", detail: "Ends the quest here", step: "done" }, { label: "$(error) The quest fails", detail: "Ends the quest here", step: "failed" }] : []),
+    ];
+    const pick = await vscode.window.showQuickPick(kinds, { title: `New step in ${b.objective}` });
+    if (!pick) return;
+    let step: unknown, scene: string | undefined;
+    switch (pick.step) {
+      case "arrive": {
+        const places = [...story.places.keys()];
+        if (!places.length) throw new StoryEditError("The story has no places yet: add one under places: in the YAML (a game map marker), then arrive there.");
+        const place = places.length === 1 ? places[0] : await vscode.window.showQuickPick(places, { title: "Arrive where?" });
+        if (!place) return;
+        step = { arrive: place };
+        break;
+      }
+      case "scene": {
+        const NewScene = "$(add) New scene...";
+        const chosen = await vscode.window.showQuickPick([NewScene, ...story.scenes.keys()], { title: "Which scene?" });
+        if (!chosen) return;
+        if (chosen === NewScene) {
+          const name = await vscode.window.showInputBox({ title: "New scene", prompt: "Its name: lower case letters, digits and _", validateInput: (v) => (/^[a-z][a-z0-9_]*$/.test(v) ? story.scenes.has(v) ? "There is a scene with this name already." : undefined : "Lower case letters, digits and _, starting with a letter.") });
+          if (!name) return;
+          scene = name;
+          step = { scene: name };
+        } else step = { scene: chosen };
+        break;
+      }
+      case "wait": {
+        const s = await vscode.window.showInputBox({ title: "Wait", prompt: "Seconds", value: "3", validateInput: (v) => (Number(v) > 0 ? undefined : "A number of seconds, more than 0.") });
+        if (!s) return;
+        step = { wait: Number(s) };
+        break;
+      }
+      case "set": {
+        const fact = await vscode.window.showInputBox({ title: "Set a fact", prompt: "Its name: lower case letters, digits and _", validateInput: (v) => (/^[a-z][a-z0-9_]*$/.test(v) ? undefined : "Lower case letters, digits and _, starting with a letter.") });
+        if (!fact) return;
+        step = { set: fact };
+        break;
+      }
+      default: step = pick.step;
+    }
+    const at = ending >= 0 ? ending : b.steps.length;
+    return this.edit(document, (t) => insertItem(scene ? addScene(t, scene) : t, ["beats", beat, "steps"], at, step));
   }
 
   /** Voices a scene's lines, or one, through EDGEwave. A take is kept by the line's id, so every line gets a

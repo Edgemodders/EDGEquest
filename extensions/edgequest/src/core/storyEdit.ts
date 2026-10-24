@@ -161,6 +161,124 @@ export function optionPath(story: Story, scene: string, option: string): Path | 
   return find(spec.items, sceneItemsPath(spec));
 }
 
+// ---- lists: a scene's items, an option's items, a beat's steps --------------------------------------
+
+const isGo = (it: unknown) => isMap(it) && it.has("go");
+
+/** The list at a path, made when it is missing or empty (`steps:` with nothing after it). */
+function listAt(doc: Document, at: Path): YAMLSeq {
+  const found: unknown = doc.getIn(at, true);
+  if (isSeq(found)) return found;
+  if (found !== undefined && found !== null && !(isScalar(found) && (found.value === null || found.value === ""))) throw new StoryEditError("There is no list there.");
+  const seq = new YAMLSeq();
+  doc.setIn(at, seq);
+  return seq;
+}
+
+/** Adds an item to a list at a place (the end when the place is past it). A go: stays last: nothing is put
+ *  after it. `value` is plain: { V: "Hi." }, { choice: { "Yes": [], "No": [] } }, { wait: 3 }, "done". */
+export function insertItem(text: string, list: Path, index: number, value: unknown): string {
+  const doc = parse(text);
+  const seq = listAt(doc, list);
+  const go = seq.items.findIndex(isGo);
+  let at = Math.max(0, Math.min(index, seq.items.length));
+  if (go >= 0 && at > go) at = go;
+  seq.items.splice(at, 0, doc.createNode(value));
+  return out(doc);
+}
+
+/** Moves an item in its list, by one or to a place. A go: does not move, and nothing moves below it. */
+export function moveItem(text: string, list: Path, from: number, to: number): string {
+  const doc = parse(text);
+  const seq = listAt(doc, list);
+  if (from < 0 || from >= seq.items.length || to < 0 || to >= seq.items.length || from === to) return text;
+  if (isGo(seq.items[from]) || isGo(seq.items[to])) throw new StoryEditError("go: ends its list, so it stays last.");
+  const [it] = seq.items.splice(from, 1);
+  seq.items.splice(to, 0, it);
+  return out(doc);
+}
+
+export function removeItem(text: string, list: Path, index: number): string {
+  const doc = parse(text);
+  const seq = listAt(doc, list);
+  if (index < 0 || index >= seq.items.length) throw new StoryEditError("There is no such item.");
+  seq.items.splice(index, 1);
+  return out(doc);
+}
+
+/** A line's speaker or text; its voice: and anything else on it are kept. */
+export function setLine(text: string, line: Path, change: { speaker?: string; text?: string }): string {
+  const doc = parse(text);
+  const item = doc.getIn(line, true);
+  if (!isMap(item)) throw new StoryEditError("There is no line there.");
+  const pair = item.items.find((p) => !["voice", "choice", "set", "go"].includes(keyOf(p)));
+  if (!pair) throw new StoryEditError("There is no line there.");
+  if (change.speaker !== undefined && change.speaker.trim()) pair.key = new Scalar(change.speaker.trim());
+  if (change.text !== undefined) {
+    if (!change.text.trim()) throw new StoryEditError("A line needs its words. Delete it instead.");
+    pair.value = new Scalar(change.text.trim());
+  }
+  return out(doc);
+}
+
+/** A choice's options (`choice` is the path of the choice item's choice: map). */
+function optionsAt(doc: Document, choice: Path): YAMLMap {
+  const map = doc.getIn(choice, true);
+  if (!isMap(map)) throw new StoryEditError("There is no choice there.");
+  return map;
+}
+
+export function addOption(text: string, choice: Path, option: string): string {
+  const doc = parse(text);
+  const map = optionsAt(doc, choice);
+  const name = option.trim();
+  if (!name) throw new StoryEditError("An option needs its text.");
+  if (map.items.some((p) => keyOf(p) === name)) throw new StoryEditError(`The choice has an option "${name}" already.`);
+  map.items.push(new Pair(new Scalar(name), new YAMLSeq()));
+  return out(doc);
+}
+
+export function renameOption(text: string, choice: Path, option: string, to: string): string {
+  const doc = parse(text);
+  const map = optionsAt(doc, choice);
+  const name = to.trim();
+  if (!name) throw new StoryEditError("An option needs its text.");
+  if (name !== option && map.items.some((p) => keyOf(p) === name)) throw new StoryEditError(`The choice has an option "${name}" already.`);
+  const pair = map.items.find((p) => keyOf(p) === option);
+  if (!pair) throw new StoryEditError(`There is no option "${option}".`);
+  pair.key = new Scalar(name);
+  return out(doc);
+}
+
+export function moveOption(text: string, choice: Path, option: string, by: number): string {
+  const doc = parse(text);
+  const map = optionsAt(doc, choice);
+  const from = map.items.findIndex((p) => keyOf(p) === option), to = from + by;
+  if (from < 0 || to < 0 || to >= map.items.length) return text;
+  const [pair] = map.items.splice(from, 1);
+  map.items.splice(to, 0, pair);
+  return out(doc);
+}
+
+export function removeOption(text: string, choice: Path, option: string): string {
+  const doc = parse(text);
+  const map = optionsAt(doc, choice);
+  if (map.items.length <= 1) throw new StoryEditError("A choice needs at least one option: delete the choice instead.");
+  if (!map.items.some((p) => keyOf(p) === option)) throw new StoryEditError(`There is no option "${option}".`);
+  map.delete(option);
+  return out(doc);
+}
+
+/** Adds a scene with V alone and one line to start from. */
+export function addScene(text: string, name: string, firstLine = "..."): string {
+  const doc = parse(text);
+  if (!/^[a-z][a-z0-9_]*$/.test(name)) throw new StoryEditError(`The scene name "${name}" must be lower case letters, digits and _, starting with a letter.`);
+  if (doc.hasIn(["scenes", name])) throw new StoryEditError(`There is a scene ${name} already.`);
+  if (!isMap(doc.get("scenes", true))) doc.set("scenes", new YAMLMap());
+  doc.setIn(["scenes", name], doc.createNode([{ V: firstLine }]));
+  return out(doc);
+}
+
 /** Ticks a checklist item (or unticks it), by its place in todo:. */
 export function setTodoDone(text: string, index: number, done: boolean): string {
   const doc = parse(text);

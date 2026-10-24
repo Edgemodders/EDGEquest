@@ -214,32 +214,55 @@
     if (!b) return "";
     const card = model.board.cards.find((c) => c.beat === b.name);
     const then = card.ending ? `The quest ${card.ending === "failed" ? "fails" : "succeeds"} here.` : b.next ? `Then <a data-select="${esc(b.next)}">${esc(model.beats[b.next]?.objective ?? b.next)}</a>, unless a choice goes elsewhere.` : "The quest stays open here: no beat follows and it does not end.";
+    const steps = b.steps.map((s) => `<li class="step-row${s.never ? " never" : ""}"${s.never ? ' title="Never happens: every way out of the scene before it goes on to another beat."' : ""}>
+        <span class="grow">${esc(s.words)}</span>${tools({ up: !s.first, down: !s.last, attrs: `data-beat="${esc(b.name)}" data-step="${s.index}"`, act: "step" })}</li>`).join("");
     const scenes = b.scenes.map((s) => {
-      const rows = s.rows.map(row).join("");
-      return `<h3>💬 ${esc(s.name)}${s.call ? ` <span class="muted">phone call with ${esc(s.call)}</span>` : ""}${s.lines ? `<button class="small" data-act="generate" data-scene="${esc(s.name)}">Voice all ${plural(s.lines, "line")}</button>` : ""}</h3>${rows || '<p class="muted">No lines.</p>'}`;
+      const rows = s.rows.map((r) => row(r, s)).join("");
+      return `<h3>💬 ${esc(s.name)}${s.call ? ` <span class="muted">phone call with ${esc(s.call)}</span>` : ""}${s.lines ? `<button class="small" data-act="generate" data-scene="${esc(s.name)}">Voice all ${plural(s.lines, "line")}</button>` : ""}</h3>${rows}`;
     }).join("");
     return `<section class="beat">
       <h2>${esc(b.objective)}</h2>
       <div class="actions"><button data-act="rename" data-beat="${esc(b.name)}">Rename</button><button data-act="addBeat" data-after="${esc(b.name)}">+ Beat after</button><button data-act="delete" data-beat="${esc(b.name)}">Delete</button></div>
       <p class="facts">Beat <code>${esc(b.name)}</code>${b.marker ? ` · marker at <code>${esc(b.marker)}</code>` : ""}. ${then}</p>
-      <ol class="steps">${b.steps.map((s) => `<li>${esc(s)}</li>`).join("") || '<li class="muted">No steps yet: write them in the YAML.</li>'}</ol>
+      <ol class="steps">${steps}</ol>
+      <div class="add"><button class="small" data-act="addStep" data-beat="${esc(b.name)}">+ Step</button></div>
       ${scenes}
     </section>`;
   }
 
-  function row(r) {
+  /** ↑ ↓ ✕ for a row; `attrs` say which row, `act` which kind of thing it is. */
+  function tools({ up, down, attrs, act }) {
+    return `<span class="tools">
+      <button class="icon" data-act="${act}-up" ${attrs} title="Move up"${up ? "" : " disabled"}>↑</button>
+      <button class="icon" data-act="${act}-down" ${attrs} title="Move down"${down ? "" : " disabled"}>↓</button>
+      <button class="icon" data-act="${act}-remove" ${attrs} title="Delete">✕</button></span>`;
+  }
+
+  function row(r, scene) {
     const d = `d${Math.min(r.depth, 6)}`;
-    if (r.kind === "choice") return `<div class="row choice ${d}">◆ Choice</div>`;
-    if (r.kind === "set") return `<div class="row set ${d}"># ${esc(r.words)}</div>`;
+    const at = r.list ? `data-list="${esc(JSON.stringify(r.list))}" data-index="${r.index}"` : "";
+    if (r.kind === "add") {
+      return `<div class="add ${d}"><button class="small" data-act="insert" data-what="line" data-speaker="V" ${at}>+ Line</button>${scene.call ? `<button class="small" data-act="insert" data-what="line" data-speaker="${esc(scene.call)}" ${at}>+ ${esc(scene.call)}'s line</button>` : ""}<button class="small" data-act="insert" data-what="choice" ${at}>+ Choice</button></div>`;
+    }
+    if (r.kind === "choice") {
+      return `<div class="row choice ${d}"><span class="grow">◆ Choice <button class="small" data-act="addOption" data-choice="${esc(JSON.stringify(r.choice))}">+ Option</button></span>${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="choice"`, act: "item" })}</div>`;
+    }
+    if (r.kind === "set") return `<div class="row set ${d}"><span class="grow"># ${esc(r.words)}</span>${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="set"`, act: "item" })}</div>`;
     if (r.kind === "option") {
       const opts = [`<option value="">the scene goes on</option>`, ...model.beatNames.map((n) => `<option value="${esc(n.name)}"${n.name === r.go ? " selected" : ""}>${esc(n.objective)} (${esc(n.name)})</option>`)].join("");
-      return `<div class="row option ${d}">▸ ${esc(r.text)} <span class="muted">goes on to</span> <select data-option="${esc(JSON.stringify(r.path))}">${opts}</select></div>`;
+      const attrs = `data-choice="${esc(JSON.stringify(r.choice))}" data-option-name="${esc(r.text)}"`;
+      return `<div class="row option ${d}">▸ <input type="text" class="option-text" value="${esc(r.text)}" ${attrs} title="The option, as the player sees it">
+        <span class="muted">goes on to</span> <select data-option="${esc(JSON.stringify(r.path))}">${opts}</select>${tools({ up: !r.first, down: !r.last, attrs, act: "option" })}</div>`;
     }
     const key = esc(JSON.stringify(r.path));
+    const speaker = scene.speakers.length > 1
+      ? `<select data-speaker-of="${key}">${scene.speakers.map((s) => `<option${s === r.speaker ? " selected" : ""}>${esc(s)}</option>`).join("")}</select>`
+      : `<b>${esc(r.speaker)}</b>`;
     return `<div class="row line ${d}">
-      <div class="said"><span class="text"><b>${esc(r.speaker)}</b>: ${esc(r.text)}</span>
+      <div class="said">${speaker}<input type="text" class="line-text" data-text-of="${key}" value="${esc(r.text)}" title="What is said">
         <span class="status ${r.status}">${StatusWords[r.status]}</span>
-        <button class="small" data-act="generate" data-scene="${esc(r.path[1])}" data-line="${key}">${r.status === "none" ? "Generate" : "Regenerate"}</button></div>
+        <button class="small" data-act="generate" data-scene="${esc(scene.name)}" data-line="${key}">${r.status === "none" ? "Generate" : "Regenerate"}</button>
+        ${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="line"`, act: "item" })}</div>
       <div class="voice">
         <label>Direction</label><input type="text" data-line="${key}" data-field="direction" value="${esc(r.direction)}" placeholder="How it is spoken, in plain words: tired, half to themself">
         <label>Say</label><input type="text" data-line="${key}" data-field="say" value="${esc(r.say)}" placeholder="As spoken, with tags: [sighs] Long day.">
@@ -274,6 +297,22 @@
     else if (act === "make") post({ type: "make" });
     else if (act === "made") post({ type: "made" });
     else if (act === "generate") post({ type: "generate", scene: t.dataset.scene, line: t.dataset.line ? JSON.parse(t.dataset.line) : undefined });
+    else if (act === "insert") post({ type: "insert", list: JSON.parse(t.dataset.list), index: Number(t.dataset.index), what: t.dataset.what, speaker: t.dataset.speaker });
+    else if (act?.startsWith("item-")) {
+      const list = JSON.parse(t.dataset.list), index = Number(t.dataset.index);
+      if (act === "item-remove") post({ type: "remove", list, index, what: t.dataset.what });
+      else post({ type: "move", list, from: index, to: index + (act === "item-up" ? -1 : 1) });
+    } else if (act?.startsWith("option-")) {
+      const choice = JSON.parse(t.dataset.choice), option = t.dataset.optionName;
+      if (act === "option-remove") post({ type: "removeOption", choice, option });
+      else post({ type: "moveOption", choice, option, by: act === "option-up" ? -1 : 1 });
+    } else if (act === "addOption") post({ type: "addOption", choice: JSON.parse(t.dataset.choice) });
+    else if (act === "addStep") post({ type: "addStep", beat: t.dataset.beat });
+    else if (act?.startsWith("step-")) {
+      const beat = t.dataset.beat, index = Number(t.dataset.step);
+      if (act === "step-remove") post({ type: "removeStep", beat, index });
+      else post({ type: "moveStep", beat, from: index, to: index + (act === "step-up" ? -1 : 1) });
+    }
   });
   app.addEventListener("dblclick", (e) => {
     const card = e.target.closest(".card");
@@ -283,6 +322,9 @@
     const t = e.target;
     if (t.dataset.option) post({ type: "go", option: JSON.parse(t.dataset.option), beat: t.value });
     else if (t.dataset.todo !== undefined) post({ type: "todo", index: Number(t.dataset.todo), done: t.checked });
+    else if (t.dataset.optionName !== undefined) { if (t.value.trim() && t.value.trim() !== t.dataset.optionName) post({ type: "renameOption", choice: JSON.parse(t.dataset.choice), option: t.dataset.optionName, to: t.value }); else t.value = t.dataset.optionName; }
+    else if (t.dataset.textOf) { if (t.value.trim()) post({ type: "line", line: JSON.parse(t.dataset.textOf), text: t.value }); else render(); }
+    else if (t.dataset.speakerOf) post({ type: "line", line: JSON.parse(t.dataset.speakerOf), speaker: t.value });
     else if (t.dataset.field) {
       const line = t.dataset.line;
       const field = (f) => app.querySelector(`[data-line="${CSS.escape(line)}"][data-field="${f}"]`)?.value ?? "";
@@ -290,7 +332,7 @@
     }
   });
   app.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && e.target.dataset?.field) e.target.blur();
+    if (e.key === "Enter" && e.target.matches?.("input[type=text]")) e.target.blur();
   });
 
   /** Shows a beat's page below the board; from a link on a page, its card is brought into view too. */

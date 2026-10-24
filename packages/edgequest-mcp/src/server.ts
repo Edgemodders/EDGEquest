@@ -18,7 +18,7 @@ import {
   BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
   assignVoiceIds, edgewaveLines, hasPrompt, readStory, readVoiceRecord, sceneMarkdown, storyChecklist, storyLines, storyboard, storyboardMarkdown, takeStatus, usedBy,
   voiceArchiveDir, voiceFile, vscodeUserSettings, addBeat, beatNameFor, convertToBeats, deleteBeat, isProject, makeQuest, optionPath, renameObjective, setChoiceGo, setLineVoice, setPath,
-  setTodoDone, storyTemplate, type QuestIndex, type SettingsReader,
+  setTodoDone, storyTemplate, insertItem, moveItem, removeItem, addScene, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
 declare const __VERSION__: string;
@@ -379,6 +379,10 @@ const Edit = z.discriminatedUnion("op", [
   z.object({ op: z.literal("setVoice"), line: z.array(z.union([z.string(), z.number()])).optional().describe("The line's path, from quest_voice."), lineId: z.string().optional().describe("Or the line's id, from quest_voice."), direction: z.string().optional(), say: z.string().optional() }),
   z.object({ op: z.literal("setTodo"), index: z.number().int().describe("The item's place in todo:, from 0."), done: z.boolean() }),
   z.object({ op: z.literal("convertToBeats") }),
+  z.object({ op: z.literal("insert"), list: z.array(z.union([z.string(), z.number()])).describe("A list's path: a scene [\"scenes\", \"arrival\"], an option's [\"scenes\", \"arrival\", 1, \"choice\", \"Leave\"], or a beat's steps [\"beats\", \"go_home\", \"steps\"]."), index: z.number().int().describe("Its place; past the end adds it last (before a go:)."), value: z.unknown().describe("{ V: \"Hi.\" }, { choice: { \"Yes\": [], \"No\": [] } }, { wait: 3 }, \"done\"...") }),
+  z.object({ op: z.literal("move"), list: z.array(z.union([z.string(), z.number()])), from: z.number().int(), to: z.number().int() }),
+  z.object({ op: z.literal("remove"), list: z.array(z.union([z.string(), z.number()])), index: z.number().int() }),
+  z.object({ op: z.literal("addScene"), name: z.string(), firstLine: z.string().optional() }),
   z.object({ op: z.literal("set"), path: z.array(z.union([z.string(), z.number()])).describe("Where, such as [\"beats\", \"go_home\", \"steps\"] or [\"scenes\", \"arrival\"]."), value: z.unknown().describe("Plain JSON; absent removes it.") }),
 ]);
 
@@ -387,7 +391,7 @@ server.registerTool(
   {
     description:
       "Changes a story file in story words, as the Storyboard does: add, rename or delete a beat, send a choice to a beat (setGo), say how a line is spoken (setVoice), tick a checklist item, " +
-      "convert an old steps: list to beats, or set any value by its path. The edits apply in order and the file is written once, comments kept; an edit that cannot apply stops them all. " +
+      "add, move or remove lines, choices and steps in their lists, add a scene, convert an old steps: list to beats, or set any value by its path. The edits apply in order and the file is written once, comments kept; an edit that cannot apply stops them all. " +
       "Returns the beats, the problems and what is left on the checklist. " + StoryFormat,
     inputSchema: {
       story: z.string().describe("A story file, <project>\\<id>.quest.yaml."),
@@ -421,6 +425,10 @@ server.registerTool(
             }
             case "setTodo": src = setTodoDone(src, e.index, e.done); break;
             case "convertToBeats": src = convertToBeats(src); break;
+            case "insert": src = insertItem(src, e.list, e.index, e.value); break;
+            case "move": src = moveItem(src, e.list, e.from, e.to); break;
+            case "remove": src = removeItem(src, e.list, e.index); break;
+            case "addScene": src = addScene(src, e.name, e.firstLine); break;
             case "set": src = setPath(src, e.path, e.value); break;
           }
         } catch (err) {

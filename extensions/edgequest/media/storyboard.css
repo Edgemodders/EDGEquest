@@ -74,3 +74,19 @@ input[type=text]:focus, select:focus { outline: 1px solid var(--vscode-focusBord
 .checklist { padding-left: .2em; }
 .checklist .done { color: var(--vscode-descriptionForeground); text-decoration: line-through; }
 .tool { font-size: .8em; color: var(--vscode-textLink-foreground); }
+
+/* Editing a beat's steps and its scenes in place. */
+.grow { flex: 1 1 auto; }
+.tools { display: inline-flex; gap: 1px; margin-left: auto; opacity: .35; }
+.row:hover .tools, .step-row:hover .tools, .tools:focus-within { opacity: 1; }
+button.icon { padding: 0 .45em; min-width: 1.8em; font-size: .9em; }
+button:disabled { opacity: .35; cursor: default; }
+.steps { padding-left: 1.6em; }
+.step-row { display: flex; align-items: center; gap: .6em; padding: .1em .3em; }
+.step-row:hover, .row:hover { background: var(--vscode-list-hoverBackground); }
+.step-row.never .grow { color: var(--vscode-descriptionForeground); text-decoration: line-through; }
+.add { margin-top: .25em; margin-bottom: .6em; display: flex; gap: .4em; }
+.row.choice, .row.set { display: flex; align-items: center; gap: .6em; }
+.row.line .said { align-items: center; }
+input.line-text { flex: 1 1 20em; width: auto; }
+input.option-text { width: auto; min-width: 12em; color: var(--vscode-textLink-foreground); }

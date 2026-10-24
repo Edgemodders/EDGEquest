@@ -166,6 +166,27 @@ try {
     const set = core.readStory(core.setPath(storyNow, ["beats", "leave", "steps"], [{ wait: 1 }, "failed"])).story;
     check(JSON.stringify(opt) === '["scenes","arrival",1,"choice","Leave"]' && set?.beats.find((b) => b.name === "leave").steps.map((x) => x.kind).join() === "wait,failed",
       "an option is found by its text, and any value can be set by its path", JSON.stringify(opt));
+    // Editing a scene and a beat's steps on the beat page: a new line goes before an option's go:, a go: never
+    // moves, an option is added, renamed, moved and (not the last) deleted, a line's words change and keep
+    // its voice, a new scene is played by a new step.
+    const leave = ["scenes", "arrival", 1, "choice", "Leave"];
+    let e = core.insertItem(storyNow, leave, 99, { V: "One more thing." });
+    let refused = "";
+    try { core.moveItem(e, leave, 1, 2); } catch (x) { refused = x.message; }
+    e = core.addOption(e, ["scenes", "arrival", 1, "choice"], "Wait");
+    e = core.renameOption(e, ["scenes", "arrival", 1, "choice"], "Wait", "Wait here");
+    e = core.moveOption(e, ["scenes", "arrival", 1, "choice"], "Wait here", -2);
+    e = core.setLine(e, ["scenes", "arrival", 0], { text: "Here it is, then." });
+    e = core.insertItem(core.addScene(e, "later"), ["beats", "look", "steps"], 1, { scene: "later" });
+    let lastOne = "";
+    try { core.removeOption(core.removeOption(core.removeOption(e, ["scenes", "arrival", 1, "choice"], "Wait here"), ["scenes", "arrival", 1, "choice"], "Leave"), ["scenes", "arrival", 1, "choice"], "Look around"); } catch (x) { lastOne = x.message; }
+    const es = core.readStory(e);
+    const choiceNow = es.story?.scenes.get("arrival").items[1];
+    const leaveNow = choiceNow?.options.find((o) => o.text === "Leave").then.map((x) => x.kind).join();
+    const firstLine = es.story?.scenes.get("arrival").items[0];
+    check(!es.problems.length && leaveNow === "line,line,go" && /stays last/.test(refused) && choiceNow.options.map((o) => o.text).join() === "Wait here,Look around,Leave" &&
+      firstLine.text === "Here it is, then." && firstLine.voice?.say && es.story.beats.find((b) => b.name === "look").steps.map((x) => x.kind).join() === "wait,scene,done" && /at least one option/.test(lastOne),
+      "beat page edits: lines and choices added, moved and deleted around a go:, options added, renamed and moved, a new scene played", es.problems.map((x) => x.message).join("; ") || `${leaveNow}; ${choiceNow?.options.map((o) => o.text)}`);
     const conv = core.readStory(core.convertToBeats("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One   # first\n  - wait: 1\n  - objective: Two\n  - done\n"));
     check(conv.story?.beats.map((b) => `${b.name}:${b.steps.length}`).join() === "01:1,02:1", "Convert to beats turns a steps: list into beats", conv.problems.map((x) => x.message).join("; "));
     const every = core.assignVoiceIds(storyNow, true);
