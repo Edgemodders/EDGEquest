@@ -43,7 +43,7 @@
       <div class="kind">Storyboard</div>
       <h1>${esc(model.title)}</h1>
       <div class="muted">${model.id ? `<code>${esc(model.id)}</code>` : ""}${model.description ? ` · ${esc(model.description)}` : ""}</div>
-      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-act="make" title="Make the quest's game files from this story (saving makes them too)">Make</button><button data-act="made" title="The game files made from this story, in plain words">Made files</button><button data-act="refresh" title="Read the story and its voice takes again, lay the board out afresh and fit it in view">Refresh</button><button data-yaml="0">Open YAML</button></div>
+      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-act="make" title="Make the quest's game files from this story (saving makes them too)">Make</button><button data-act="made" title="The game files made from this story, in plain words">Made files</button><button data-act="refresh" title="Lay the board out afresh and fit it in view, reading the story and its voice takes again">Layout</button><button data-yaml="0">Open YAML</button></div>
     </header>`;
   }
 
