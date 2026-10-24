@@ -7,6 +7,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { readStory, BridgeClient, buildIndex, checkMarkdown, checkQuestMod, defaultCacheDir, modFromArchive, modFromFolder, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
 import { isStoryFile, madeFiles, QuestMaker } from "./making";
+import { newQuest, ProjectTree } from "./projectTree";
 import { openRaw, QuestPages } from "./questPage";
 import { QuestTree } from "./questTree";
 import { StoryboardEditor } from "./storyboard";
@@ -16,6 +17,9 @@ interface REDcodeApi {
   readonly apiVersion: 1;
   bridge(): BridgeClient | undefined;
   gamePath(): string | undefined;
+  /** The open WolvenKit project. */
+  project(): { name: string; modName: string; dir: string } | undefined;
+  onDidChangeProject?: vscode.Event<unknown>;
 }
 
 /** The part of EDGEdeck's API (version 1) EDGEquest uses. */
@@ -214,8 +218,10 @@ function localFile(p: string): string | undefined {
   return undefined;
 }
 
-/** The story file a command is about: the one given, or the active editor's or Storyboard's. */
-function storyTarget(uri?: vscode.Uri): vscode.Uri | undefined {
+/** The story file a command is about: the one given (a file, or a Project Quests item), or the active
+ *  editor's or Storyboard's. */
+function storyTarget(given?: vscode.Uri | { file?: string }): vscode.Uri | undefined {
+  const uri = given instanceof vscode.Uri ? given : given?.file ? vscode.Uri.file(given.file) : undefined;
   if (uri && isStoryFile(uri)) return uri;
   const editor = vscode.window.activeTextEditor?.document.uri;
   if (editor && isStoryFile(editor)) return editor;
@@ -247,6 +253,16 @@ export function activate(context: vscode.ExtensionContext): void {
     log,
   });
   const maker = new QuestMaker({ bridge: bridgeNow, index: () => index, log });
+  const projects = new ProjectTree(() => redcode()?.project?.()?.dir);
+  const projectView = vscode.window.createTreeView("edgequest.projectQuests", { treeDataProvider: projects });
+  let refreshing: NodeJS.Timeout | undefined;
+  const refreshProjects = () => { clearTimeout(refreshing); refreshing = setTimeout(() => projects.refresh(), 300); };
+  // Story files, what make wrote and EDGEwave's takes all change what the view shows.
+  const watchers = ["**/*.quest.yaml", "**/.edgequest/*.made.json", "**/source/raw/edgewave/voice/**/voice.json"].map((g) => vscode.workspace.createFileSystemWatcher(g));
+  for (const w of watchers) context.subscriptions.push(w, w.onDidCreate(refreshProjects), w.onDidChange(refreshProjects), w.onDidDelete(refreshProjects));
+  const rc = vscode.extensions.getExtension<REDcodeApi>("edgemodders.redcode-cyberpunk");
+  if (rc?.isActive) rc.exports.onDidChangeProject?.(refreshProjects, undefined, context.subscriptions);
+  projects.refresh();
   context.subscriptions.push(
     output,
     view,
@@ -258,11 +274,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("edgequest.check", checkMod),
     vscode.commands.registerCommand("edgequest.open", (gamePath: string) => pages.open(gamePath)),
     maker,
+    projectView,
+    vscode.commands.registerCommand("edgequest.newQuest", () => newQuest(projects, () => settings("edgequest.author"))),
+    vscode.commands.registerCommand("edgequest.refreshProjects", () => projects.refresh()),
+    vscode.workspace.onDidChangeWorkspaceFolders(refreshProjects),
     vscode.window.registerCustomEditorProvider(StoryboardEditor.viewType, new StoryboardEditor(context, log), { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (isStoryFile(doc.uri) && vscode.workspace.getConfiguration("edgequest").get<boolean>("makeOnSave", true)) void maker.make(doc.uri);
     }),
-    vscode.commands.registerCommand("edgequest.make", async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand("edgequest.make", async (uri?: vscode.Uri | { file?: string }) => {
       const target = storyTarget(uri);
       if (!target) return void vscode.window.showInformationMessage("Make Quest works on a story file (<id>.quest.yaml): open one first.");
       const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === target.toString());
@@ -270,7 +290,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (doc?.isDirty && (await doc.save()) && vscode.workspace.getConfiguration("edgequest").get<boolean>("makeOnSave", true)) return;
       await maker.make(target, true);
     }),
-    vscode.commands.registerCommand("edgequest.madeFiles", async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand("edgequest.madeFiles", async (uri?: vscode.Uri | { file?: string }) => {
       const target = storyTarget(uri);
       if (!target) return;
       const file = target.fsPath;

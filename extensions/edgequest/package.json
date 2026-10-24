@@ -47,7 +47,10 @@
     "onCustomEditor:edgequest.storyboard",
     "onCommand:edgequest.openStoryboard",
     "onCommand:edgequest.make",
-    "onCommand:edgequest.madeFiles"
+    "onCommand:edgequest.madeFiles",
+    "onView:edgequest.projectQuests",
+    "onCommand:edgequest.newQuest",
+    "onCommand:edgequest.refreshProjects"
   ],
   "contributes": {
     "viewsContainers": {
@@ -61,6 +64,10 @@
     },
     "views": {
       "edgequest": [
+        {
+          "id": "edgequest.projectQuests",
+          "name": "Project Quests"
+        },
         {
           "id": "edgequest.gameQuests",
           "name": "Game Quests"
@@ -87,6 +94,16 @@
         "view": "edgequest.gameQuests",
         "contents": "The game's quests could not be read.\n[Show Log](command:edgequest.showLog)\n[Try Again](command:edgequest.refresh)",
         "when": "edgequest.state == error"
+      },
+      {
+        "view": "edgequest.projectQuests",
+        "contents": "No WolvenKit project is open. Open one in REDcode, or open a folder holding a .cpmodproj.\n[New Quest](command:edgequest.newQuest)",
+        "when": "edgequest.projectState == noProject"
+      },
+      {
+        "view": "edgequest.projectQuests",
+        "contents": "This project has no quests yet. A quest is a story file you write in words; EDGEquest makes the game files from it.\n[New Quest](command:edgequest.newQuest)",
+        "when": "edgequest.projectState == empty"
       }
     ],
     "commands": [
@@ -144,6 +161,18 @@
         "command": "edgequest.madeFiles",
         "title": "Made Files...",
         "category": "EDGEquest"
+      },
+      {
+        "command": "edgequest.newQuest",
+        "title": "New Quest...",
+        "category": "EDGEquest",
+        "icon": "$(add)"
+      },
+      {
+        "command": "edgequest.refreshProjects",
+        "title": "Refresh",
+        "category": "EDGEquest",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -167,6 +196,16 @@
           "command": "edgequest.check",
           "when": "view == edgequest.gameQuests",
           "group": "navigation@3"
+        },
+        {
+          "command": "edgequest.newQuest",
+          "when": "view == edgequest.projectQuests",
+          "group": "navigation@1"
+        },
+        {
+          "command": "edgequest.refreshProjects",
+          "when": "view == edgequest.projectQuests",
+          "group": "navigation@2"
         }
       ],
       "commandPalette": [
@@ -205,6 +244,23 @@
           "when": "resourceFilename =~ /\\.quest\\.yaml$/",
           "group": "navigation"
         }
+      ],
+      "view/item/context": [
+        {
+          "command": "edgequest.make",
+          "when": "view == edgequest.projectQuests && viewItem == story",
+          "group": "inline"
+        },
+        {
+          "command": "edgequest.make",
+          "when": "view == edgequest.projectQuests && viewItem == story",
+          "group": "edgequest@1"
+        },
+        {
+          "command": "edgequest.madeFiles",
+          "when": "view == edgequest.projectQuests && viewItem == story",
+          "group": "edgequest@2"
+        }
       ]
     },
     "configuration": {
@@ -229,6 +285,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Make a quest's game files each time its story file (`<id>.quest.yaml`) is saved. Problems go to the Problems panel. Off: use **EDGEquest: Make Quest**."
+        },
+        "edgequest.author": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Your modder name for new quests, lower case: a quest's files go in `mod\\<author>\\<id>`. Empty: New Quest asks once."
         }
       }
     },
