@@ -14,7 +14,7 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077: a VS Code extension in the
 
 ## The EDGE platform
 
-EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as every repo below (GitHub organisation Edgemodders). EDGEmodders is the community and organisation; EDGE is the platform brand. Each tool has its own repo and its own `CLAUDE.md`; most are checked out as siblings of this one under `E:\Modding\Cyberpunk 2077\` (EDGEbuilder is not, on this machine: read it on GitHub). Read a sibling's notes and design before relying on it; another session may be working in it right now.
+EDGE is an AI-first modding platform for Cyberpunk 2077, by the same owner as every repo below (GitHub organisation Edgemodders). EDGEmodders is the community and organisation; EDGE is the platform brand. Each tool has its own repo and its own `CLAUDE.md`; most are checked out as siblings of this one under `E:\Modding\Cyberpunk 2077\` (EDGEbuilder too, as `..\EDGEbuilder`). Read a sibling's notes and design before relying on it; another session may be working in it right now.
 
 | Tool | What it is | What EDGEquest gets from it |
 |---|---|---|
