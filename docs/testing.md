@@ -22,6 +22,7 @@ Every test run on the dev PC, with its result. A test is recorded when it is fir
 | Test 5, 2026-10-23 | Beats: the test quest as four beats on game 2.31, from a save before the mod. Arrive at the door; the scene's choice goes on by the scene's own exits: "Look closer" to a beat that ends the quest succeeded, "Go inside" (after reloading) to one that ends it failed. The owner reported that everything worked | **Passed: a choice branches the quest to either ending** |
 | Storyboard hand test, 2026-10-23 | F5 on the dev PC with the test project's story: four cards with the branch to two endings; a card's page; a line's direction; a choice sent to another beat; a beat added; undo; each change in the YAML | **Passed** (the owner: everything worked) |
 | Storyboard pan, zoom and splitter, 2026-10-23 | F5 on the dev PC: drag to pan, wheel and buttons to zoom, the splitter to resize the board | **Passed** (the owner: it works great) |
+| Step 3 hand test, 2026-10-24 | F5 on the dev PC: the Project Quests view; New Quest (title, id, name; opens the Storyboard; makes it); an edit saved and made; Made files and the made phase in plain words; a broken `go:` in the Problems panel at its line | **Passed, one fault:** the status bar's passing message after a make was not seen. Fixed: a status bar item stays while a story file is in front, with its last make (made at a time and what is left to do, or its problems); a click shows the problems or the made files |
 
 ## Census and reader checks (Q1, 2026-10-21)
 
