@@ -110,6 +110,19 @@ A scan of the game's 4,627 `.scene` files (4 failed to read): 102 have V as the 
 | Other | Empty workspots, props, effects; an `interruptionScenarios` default; `resouresReferences` lists the lip sync anim set; `sceneCategoryTag` (`minorQuests`, `other`, …) |
 | A phone call | The caller is a `scnActorDef` (`spawnSet`); their lines have `isHolocallSpeaker` 1 and `Vo_Expression_Phone`. How the phase opens the call and shows the caller's portrait is the next study |
 
+## Music and sound in quests (Q4 study, 2026-10-24)
+
+A sample of 300 of the 3,837 quest phases and 150 of the 4,627 scenes, read through REDbridge on game 2.31:
+
+| Where | Class | Fields | Seen |
+|---|---|---|---|
+| Phase | `questAudioNodeDefinition`, type `questAudioEventNodeType` | `event`, `isMusic`, `musicEvents`, `events`, `switches`, `params`, `objectRef`, `isPlayer`, `emitter` | 143 nodes in 36 phases |
+| Phase | type `questAudioMixNodeType` | `mixSignpost` | 144 |
+| Phase | types `questAudioSwitchNodeType` (`switch`, `isMusic`), `questAudioMusicSyncNodeType` | | 2 and 1 |
+| Scene | `scnAudioEvent` | `audioEventName`, `emitterName`, `ambientUniqueName`, performer | in 24 of the 150 scenes |
+
+Music is posted as cue events per quest: `mus_q001_v_meets_dex_01_START_intro_dialogue_choice`, `..._02_take_the_chip` to `..._05_STOP_end_silent`; `mus_q104_drone_flight_01_START` and `_02_STOP`. Sound events are names such as `sa_airdrop_package_land`; scene events are mostly a performer's foley (`q004_sc_06_v_stands_up`). The two switches seen set `radio_station`. *Unverified:* whether a cue plays well outside its quest, and what the mix signposts do.
+
 ## Tools that already edit quests
 
 WolvenKit edits `.questphase` and `.scene` as node graphs (since 8.12.1, reworked in 8.17.0): add and connect nodes, a scene editor with a timeline, dialogue import from JSON (9.0.0), copying game lip sync. It has no undo yet. Whether it opens `.quest` as a graph is *unverified*. EDGEquest's place next to it: the story layer, checks across files, and assistants; raw graph editing stays in WolvenKit and REDcode's CR2W editor.
