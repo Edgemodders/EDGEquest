@@ -43,7 +43,9 @@
     "onCommand:edgequest.rebuildIndex",
     "onCommand:edgequest.find",
     "onCommand:edgequest.open",
-    "onCommand:edgequest.check"
+    "onCommand:edgequest.check",
+    "onCustomEditor:edgequest.storyboard",
+    "onCommand:edgequest.openStoryboard"
   ],
   "contributes": {
     "viewsContainers": {
@@ -123,6 +125,12 @@
         "command": "edgequest.open",
         "title": "Open Quest",
         "category": "EDGEquest"
+      },
+      {
+        "command": "edgequest.openStoryboard",
+        "title": "Open Storyboard",
+        "category": "EDGEquest",
+        "icon": "$(type-hierarchy)"
       }
     ],
     "menus": {
@@ -152,6 +160,10 @@
         {
           "command": "edgequest.open",
           "when": "false"
+        },
+        {
+          "command": "edgequest.openStoryboard",
+          "when": "resourceFilename =~ /\\.quest\\.yaml$/"
         }
       ],
       "explorer/context": [
@@ -159,6 +171,13 @@
           "command": "edgequest.check",
           "when": "resourceExtname == .archive || explorerResourceIsFolder",
           "group": "edgequest"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "edgequest.openStoryboard",
+          "when": "resourceFilename =~ /\\.quest\\.yaml$/ && activeCustomEditorId != edgequest.storyboard",
+          "group": "navigation"
         }
       ]
     },
@@ -181,7 +200,19 @@
           "markdownDescription": "DOTNET_ROOT for the bridge, when .NET 10 is installed per user. Empty: use REDcode's `redcode.dotnetRoot`."
         }
       }
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "edgequest.storyboard",
+        "displayName": "Storyboard",
+        "selector": [
+          {
+            "filenamePattern": "*.quest.yaml"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

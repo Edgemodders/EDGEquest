@@ -40,16 +40,21 @@ export interface StoryLine {
   speaker: string;
   text: string;
   voice?: LineVoice;
+  /** Where the line is in the story file, for edits: ["scenes", "arrival", 2, "choice", "Leave", 0]. */
+  path: (string | number)[];
 }
+
+/** Where a scene's items are in the story file: a phone call keeps them under lines:. */
+export const sceneItemsPath = (spec: SceneSpec): (string | number)[] => (spec.call ? ["scenes", spec.name, "lines"] : ["scenes", spec.name]);
 
 /** A scene's lines in order, with the ids the scene writer gives them (the same walk). */
 export function sceneLines(story: { id: string }, spec: SceneSpec): StoryLine[] {
   const out: StoryLine[] = [];
-  const walk = (items: SceneItem[], place: string) => items.forEach((it, i) => {
-    if (it.kind === "line") out.push({ id: lineKey(story, spec.name, `${place}/${i}`, it.voice?.id), scene: spec.name, speaker: it.speaker, text: it.text, voice: it.voice });
-    if (it.kind === "choice") it.options.forEach((o, j) => walk(o.then, `${place}/${i}/${j}`));
+  const walk = (items: SceneItem[], place: string, at: (string | number)[]) => items.forEach((it, i) => {
+    if (it.kind === "line") out.push({ id: lineKey(story, spec.name, `${place}/${i}`, it.voice?.id), scene: spec.name, speaker: it.speaker, text: it.text, voice: it.voice, path: [...at, i] });
+    if (it.kind === "choice") it.options.forEach((o, j) => walk(o.then, `${place}/${i}/${j}`, [...at, i, "choice", o.text]));
   });
-  walk(spec.items, "main");
+  walk(spec.items, "main", sceneItemsPath(spec));
   return out;
 }
 

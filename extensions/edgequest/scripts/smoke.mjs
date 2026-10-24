@@ -140,6 +140,28 @@ try {
     fs.writeFileSync(vf, JSON.stringify(rec("[shouts] Here it is!")));
     const staleOne = core.storyChecklist(storyNow, proj).items.find((i) => i.found === "voice/arrival")?.do;
     check(/^Voice 2 of the 3 lines/.test(madeOne ?? "") && /1 changed since its take/.test(staleOne ?? ""), "the voice item counts takes from EDGEwave's voice.json, and a changed line's take as out of date", `${madeOne} / ${staleOne}`);
+    // The Storyboard: its model of the template, and its edits, each a change to the story file's text.
+    const m = core.boardModel(storyNow, storyFile);
+    const p = m.board.pos;
+    const opts = m.beats.arrive.scenes[0].rows.filter((r) => r.kind === "option").map((r) => `${r.text}>${r.go}`).join();
+    check(p.look.x === p.leave.x && p.look.x > p.arrive.x && p.look.y !== p.leave.y && opts === "Look around>look,Leave>leave" && m.checklist.length === 3,
+      "the Storyboard lays out the template: the start, then its two endings side by side; each option says where it goes", `${opts}; arrive ${p.arrive.x}, look ${p.look.x},${p.look.y}, leave ${p.leave.x},${p.leave.y}`);
+    let t = core.addBeat(storyNow, "Celebrate the find", "look");
+    const added = t.name;
+    t = core.setChoiceGo(t.text, ["scenes", "arrival", 1, "choice", "Leave"], added);
+    t = core.renameObjective(t, added, "Celebrate");
+    t = core.setLineVoice(t, ["scenes", "arrival", 1, "choice", "Leave", 0], { direction: "Flat, already walking away.", say: "" });
+    t = core.setTodoDone(t, 0, true);
+    const edited2 = core.readStory(t);
+    const b2 = edited2.story && core.storyboard(edited2.story);
+    const leaveLine = edited2.story?.scenes.get("arrival").items[1].options[1].then[0];
+    check(added === "celebrate_the_find" && !!b2 && b2.arrows.some((a) => a.to === added && a.choice === "Leave") && edited2.story.beats.map((b) => b.name).join() === "arrive,look,celebrate_the_find,leave" &&
+      leaveLine.voice?.direction === "Flat, already walking away." && edited2.story.todo[0].done && /^# EDGEquest story file/.test(t),
+      "Storyboard edits: add a beat, send a choice to it, rename it, say how a line is spoken, tick an item; comments kept", edited2.problems.map((x) => x.message).join("; ") || b2.arrows.map((a) => `${a.from}>${a.to}`).join());
+    const gone = core.readStory(core.deleteBeat(t, added));
+    check(gone.problems.length === 1 && /go: "celebrate_the_find" is not one of the beats/.test(gone.problems[0].message), "deleting a beat a choice goes to leaves one problem naming it", gone.problems.map((x) => x.message).join("; "));
+    const conv = core.readStory(core.convertToBeats("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One   # first\n  - wait: 1\n  - objective: Two\n  - done\n"));
+    check(conv.story?.beats.map((b) => `${b.name}:${b.steps.length}`).join() === "01:1,02:1", "Convert to beats turns a steps: list into beats", conv.problems.map((x) => x.message).join("; "));
     const every = core.assignVoiceIds(storyNow, true);
     const after = core.readStory(every.text).story;
     check(every.added === 2 && core.storyLines(after).every((l) => l.voice?.id), "preparing for voicing gives every line a voice id, and nothing else", `${every.added} added`);

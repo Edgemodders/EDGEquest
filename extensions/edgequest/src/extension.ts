@@ -6,6 +6,7 @@ import * as vscode from "vscode";
 import { BridgeClient, buildIndex, checkMarkdown, checkQuestMod, defaultCacheDir, modFromArchive, modFromFolder, findQuests, isGameFolder, isIndexCurrent, listGameFiles, loadIndex, resolveBridge, resolveGame, type GameChoice, type QuestIndex } from "./core";
 import { QuestPages } from "./questPage";
 import { QuestTree } from "./questTree";
+import { StoryboardEditor } from "./storyboard";
 
 /** The parts of REDcode's API (version 1, docs/api.md) EDGEquest uses. */
 interface REDcodeApi {
@@ -225,6 +226,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("edgequest.find", findQuest),
     vscode.commands.registerCommand("edgequest.check", checkMod),
     vscode.commands.registerCommand("edgequest.open", (gamePath: string) => pages.open(gamePath)),
+    vscode.window.registerCustomEditorProvider(StoryboardEditor.viewType, new StoryboardEditor(context, log), { webviewOptions: { retainContextWhenHidden: true } }),
+    vscode.commands.registerCommand("edgequest.openStoryboard", (uri?: vscode.Uri) => {
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (target) void vscode.commands.executeCommand("vscode.openWith", target, StoryboardEditor.viewType);
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("edgequest") || e.affectsConfiguration("redcode.gamePath") || e.affectsConfiguration("redcode.bridgePath")) void refresh();
     }),
