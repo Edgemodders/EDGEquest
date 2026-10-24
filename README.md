@@ -17,14 +17,17 @@ EDGEquest builds on the other EDGE tools: [REDcode](https://github.com/Edgemodde
 **[Read the docs](https://edgemodders.github.io/EDGEquest/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: scaffold.** The repository, the branding, the docs site and a design brief (draft 0.1) exist; there is no code yet. Next: Q0, the design.
+> **Status: Q2 Write, not released yet.** EDGEquest reads the game's quests in plain words (Q1) and makes new ones from a story file: a quest made from its template plays in the game from start to end, and a choice can branch it to different endings. The Storyboard edits a quest as cards, one per beat, and the MCP server lets an assistant start, edit and make a quest. There is no release yet: to try it, build it from source ([Dev setup](docs/dev-setup.md), section 5). What works so far is in the [changelog](CHANGELOG.md), and where it goes is in the [design](docs/design.md). Tested in the game on 2.31; on 2.5, REDbridge does not yet read every game file ([REDbridge #10](https://github.com/Edgemodders/REDbridge/issues/10)).
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `docs/` | Documentation site: the design and dev setup |
+| `extensions/edgequest/` | The VS Code extension; `src/core` holds everything that is not UI, with no VS Code imports |
+| `packages/edgequest-mcp/` | The MCP server `edgequest`, which bundles the core |
+| `docs/` | Documentation site: the design, the quest formats, the tests and the dev setup |
 | `tools/brand/` | Renders the banner, icon and badges; `activity.svg` is the activity bar icon |
+| `CHANGELOG.md` | What changed, newest first |
 
 ## Legal
 
