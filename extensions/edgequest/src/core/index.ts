@@ -6,6 +6,7 @@ export * from "./checklist";
 export * from "./storyboard";
 export * from "./voice";
 export * from "./storyEdit";
+export * from "./soundEvents";
 export * from "./config";
 export * from "./gameFinder";
 export * from "./describe";

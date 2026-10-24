@@ -7,7 +7,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import {
-  addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption,
+  setPath, addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption,
   renameObjective, renameOption, sceneLines, setChoiceGo, setLine, setLineVoice, setThen, setTodoDone,
   voiceArchiveDir, StoryEditError,
 } from "./core";
@@ -37,13 +37,25 @@ type Message =
   | { type: "moveOption"; choice: Path; option: string; by: number }
   | { type: "removeOption"; choice: Path; option: string }
   | { type: "addStep"; beat: string }
+  | { type: "addSound"; list: Path; index: number }
+  | { type: "editSound"; at: Path; kind: "music" | "sound"; event: string }
   | { type: "moveStep"; beat: string; from: number; to: number }
   | { type: "removeStep"; beat: string; index: number };
 
-/** The part of EDGEwave's API (version 1, the EDGEwave #5 contract) EDGEquest uses. */
+/** The part of EDGEwave's API (version 1: the EDGEwave #5 and #7 contracts) EDGEquest uses. */
 interface EDGEwaveApi {
   readonly apiVersion: 1;
-  voiceLines(o: { quest: string; lines: ReturnType<typeof edgewaveLines>; archiveDir?: string }): Promise<unknown>;
+  voiceLines(o: { quest: string; lines: ReturnType<typeof edgewaveLines>; archiveDir?: string; project?: string }): Promise<unknown>;
+  soundEvents?(o: { query?: string; music?: boolean; quest?: boolean; limit?: number }): Promise<{ name: string; loops: boolean; min: number; max: number; tags: string[]; music: boolean; quest: boolean }[]>;
+  playEvent?(o: { name: string }): Promise<{ ok: true } | { ok: false; reason: string }>;
+}
+
+/** EDGEwave's API when it is installed and can be asked; undefined otherwise. */
+async function edgewave(): Promise<EDGEwaveApi | undefined> {
+  const ext = vscode.extensions.getExtension<EDGEwaveApi>("edgemodders.edgewave");
+  if (!ext) return undefined;
+  const api = ext.isActive ? ext.exports : await ext.activate().then((a) => a, () => undefined);
+  return api?.apiVersion === 1 ? api : undefined;
 }
 
 export class StoryboardEditor implements vscode.CustomTextEditorProvider {
@@ -157,6 +169,16 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
         return this.edit(document, (t) => removeOption(t, m.choice, m.option));
       }
       case "addStep": return this.addStep(document, m.beat);
+      case "addSound": {
+        const event = await pickSound("sound");
+        if (!event) return;
+        return this.edit(document, (t) => insertItem(t, m.list, m.index, { sound: event }));
+      }
+      case "editSound": {
+        const event = await pickSound(m.kind, m.event);
+        if (!event || event === m.event) return;
+        return this.edit(document, (t) => setPath(t, [...m.at, m.kind], event));
+      }
       case "moveStep": return this.edit(document, (t) => moveItem(t, ["beats", m.beat, "steps"], m.from, m.to));
       case "removeStep": return this.edit(document, (t) => removeItem(t, ["beats", m.beat, "steps"], m.index));
     }
@@ -173,6 +195,8 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
       { label: "$(comment-discussion) Play a scene", detail: "Lines and choices, here or in a new scene", step: "scene" },
       { label: "$(watch) Wait", detail: "A number of seconds", step: "wait" },
       { label: "$(symbol-variable) Set a fact", detail: "Remember something for later; the quest's id is put in front", step: "set" },
+      { label: "$(music) Music", detail: "Start or stop a music cue: the game's own, by name (a cue's _STOP ends it)", step: "music" },
+      { label: "$(unmute) Sound", detail: "Play a sound on V: one of the game's, or a custom sound made with EDGEwave", step: "sound" },
       ...(ending < 0 ? [{ label: "$(pass) The quest succeeds", detail: "Ends the quest here", step: "done" }, { label: "$(error) The quest fails", detail: "Ends the quest here", step: "failed" }] : []),
     ];
     const pick = await vscode.window.showQuickPick(kinds, { title: `New step in ${b.objective}` });
@@ -211,6 +235,13 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
         step = { set: fact };
         break;
       }
+      case "music":
+      case "sound": {
+        const event = await pickSound(pick.step);
+        if (!event) return;
+        step = { [pick.step]: event };
+        break;
+      }
       default: step = pick.step;
     }
     const at = ending >= 0 ? ending : b.steps.length;
@@ -220,8 +251,7 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
   /** Voices a scene's lines, or one, through EDGEwave. A take is kept by the line's id, so every line gets a
    *  voice id first. */
   private async generate(document: vscode.TextDocument, scene: string, line?: Path): Promise<void> {
-    const ext = vscode.extensions.getExtension<EDGEwaveApi>("edgemodders.edgewave");
-    if (!ext) {
+    if (!vscode.extensions.getExtension("edgemodders.edgewave")) {
       const pick = await vscode.window.showInformationMessage("Voice takes come from EDGEwave, the EDGE sound studio (edgemodders.edgewave). Install it to voice lines.", "Show EDGEwave");
       if (pick) void vscode.commands.executeCommand("workbench.extensions.search", "edgemodders.edgewave");
       return;
@@ -233,10 +263,10 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
     let lines = sceneLines(story, spec);
     if (line) lines = lines.filter((l) => JSON.stringify(l.path) === JSON.stringify(line));
     if (!lines.length) return;
-    const api = ext.isActive ? ext.exports : await ext.activate();
-    if (api?.apiVersion === 1 && typeof api.voiceLines === "function") {
+    const api = await edgewave();
+    if (typeof api?.voiceLines === "function") {
       if (document.isDirty) await document.save();
-      await api.voiceLines({ quest: story.id, lines: edgewaveLines(lines), archiveDir: voiceArchiveDir(story) });
+      await api.voiceLines({ quest: story.id, lines: edgewaveLines(lines), archiveDir: voiceArchiveDir(story), project: path.dirname(document.uri.fsPath) });
       return;
     }
     // EDGEwave cannot be asked yet (EDGEwave #5): hand the line over by hand.
@@ -257,4 +287,52 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
 <body><div id="app"><p class="muted">Reading the story…</p></div>
 <script nonce="${nonce}" src="${js}"></script></body></html>`;
   }
+}
+
+const EventName = /^[A-Za-z0-9_]+$/;
+
+/** Picks a music cue or a sound event: from the game's list through EDGEwave, with Play on each; without
+ *  EDGEwave, by typing its name. */
+async function pickSound(kind: "music" | "sound", current?: string): Promise<string | undefined> {
+  const typeIt = () => vscode.window.showInputBox({
+    title: kind === "music" ? "Music cue" : "Sound", value: current,
+    prompt: kind === "music" ? "A music cue's event name, such as mus_q104_drone_flight_01_START (its _STOP ends it)" : "A sound event's name, such as sa_airdrop_package_land, or edgewave_<name> for a custom sound from EDGEwave",
+    validateInput: (v) => (EventName.test(v.trim()) ? undefined : "Letters, digits and _."),
+  }).then((v) => v?.trim());
+  const api = await edgewave();
+  if (!api?.soundEvents) return typeIt();
+  const play: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon("play"), tooltip: "Play (in EDGEwave's Hear panel)" };
+  const TypeName = "$(edit) Type a name...";
+  const qp = vscode.window.createQuickPick<vscode.QuickPickItem>();
+  qp.title = kind === "music" ? "Music cue (game events from EDGEwave)" : "Sound (game events from EDGEwave)";
+  qp.placeholder = kind === "music" ? "Search: q104 drone, start, stop..." : "Search: door, alarm, airdrop...";
+  qp.matchOnDescription = true;
+  qp.value = current ?? "";
+  let seq = 0;
+  const search = async (q: string) => {
+    const mine = ++seq;
+    qp.busy = true;
+    const found = await api.soundEvents!({ query: q, music: kind === "music" ? true : undefined, quest: !q && kind === "sound" ? true : undefined, limit: 200 }).catch(() => []);
+    if (mine !== seq) return;
+    qp.busy = false;
+    const secs = (e: { min: number; max: number }) => (e.max ? `${e.min === e.max ? e.max.toFixed(1) : `${e.min.toFixed(1)}–${e.max.toFixed(1)}`} s` : "");
+    qp.items = [
+      ...found.map((e) => ({ label: e.name, description: [e.loops ? "loops" : "", secs(e), e.music && kind === "sound" ? "music" : ""].filter(Boolean).join(" · "), detail: e.tags.join(", ") || undefined, buttons: kind === "sound" ? [play] : [] })),
+      { label: TypeName, alwaysShow: true, description: "a custom sound from EDGEwave (edgewave_<name>), or a name not listed" },
+    ];
+  };
+  let timer: NodeJS.Timeout | undefined;
+  qp.onDidChangeValue((v) => { clearTimeout(timer); timer = setTimeout(() => void search(v), 200); });
+  qp.onDidTriggerItemButton(async (e) => {
+    const r = await api.playEvent?.({ name: e.item.label });
+    if (r && !r.ok) void vscode.window.showInformationMessage(r.reason);
+  });
+  void search(qp.value);
+  const chosen = await new Promise<string | undefined>((resolve) => {
+    qp.onDidAccept(() => { resolve(qp.selectedItems[0]?.label); qp.hide(); });
+    qp.onDidHide(() => resolve(undefined));
+    qp.show();
+  });
+  qp.dispose();
+  return chosen === TypeName ? typeIt() : chosen;
 }

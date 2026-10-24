@@ -43,6 +43,8 @@ const stepWords = (s: StoryStep): string => {
     case "wait": return `wait ${s.seconds} s`;
     case "scene": return `scene ${s.scene}`;
     case "set": return `${s.add ? "add" : "set"} ${s.fact}${s.add ? ` ${s.value}` : s.value !== 1 ? ` to ${s.value}` : ""}`;
+    case "music": return `music ${s.event}`;
+    case "sound": return `sound ${s.event}`;
     case "done": return "the quest succeeds";
     case "failed": return "the quest fails";
   }
@@ -113,6 +115,7 @@ export type BoardRow =
   | ({ kind: "choice"; depth: number; choice: Path } & Placed)
   | { kind: "option"; depth: number; text: string; path: Path; choice: Path; go?: string; first: boolean; last: boolean }
   | ({ kind: "set"; depth: number; words: string } & Placed)
+  | ({ kind: "sound"; depth: number; event: string; path: Path } & Placed)
   /** The end of a list: where a new line or choice goes. */
   | { kind: "add"; depth: number; list: Path; index: number };
 
@@ -129,7 +132,7 @@ export interface BoardModel {
     /** The beat that follows when no choice says otherwise; `follows` is the next in the list, the default. */
     next?: string; follows?: string;
     /** Every step, in words; those after a scene whose every way out goes elsewhere never happen. */
-    steps: { words: string; index: number; first: boolean; last: boolean; never: boolean }[];
+    steps: { words: string; index: number; first: boolean; last: boolean; never: boolean; sound?: { kind: "music" | "sound"; event: string } }[];
     scenes: { name: string; call?: string; speakers: string[]; rows: BoardRow[]; lines: number }[];
   }>;
   beatNames: { name: string; objective: string }[];
@@ -201,7 +204,8 @@ function sceneRows(story: Story, name: string, record: ReturnType<typeof readVoi
           rows.push({ kind: "option", depth: depth + 1, text: o.text, path: [...p, "choice", o.text], choice: [...p, "choice"], go: last?.kind === "go" ? last.beat : undefined, first: j === 0, last: j === it.options.length - 1 });
           walk(o.then, [...p, "choice", o.text], depth + 2);
         });
-      } else if (it.kind === "set") rows.push({ kind: "set", depth, words: `${it.add ? "add" : "set"} ${it.fact}${it.add || it.value !== 1 ? ` ${it.value}` : ""}`, ...placed });
+      } else if (it.kind === "sound") rows.push({ kind: "sound", depth, event: it.event, path: p, ...placed });
+      else if (it.kind === "set") rows.push({ kind: "set", depth, words: `${it.add ? "add" : "set"} ${it.fact}${it.add || it.value !== 1 ? ` ${it.value}` : ""}`, ...placed });
     });
     rows.push({ kind: "add", depth, list: at, index: movable });
   };
@@ -224,7 +228,7 @@ export function boardModel(text: string, file: string): BoardModel {
   story.beats.forEach((b, i) => {
     let never = false;
     const steps = b.steps.map((s, i) => {
-      const row = { words: stepWords(s), index: i, first: i === 0, last: i === b.steps.length - 1, never };
+      const row = { words: stepWords(s), index: i, first: i === 0, last: i === b.steps.length - 1, never, ...(s.kind === "music" || s.kind === "sound" ? { sound: { kind: s.kind, event: s.event } } : {}) };
       if (s.kind === "scene" && alwaysGoes(story.scenes.get(s.scene)?.items ?? [])) never = true;
       return row;
     });

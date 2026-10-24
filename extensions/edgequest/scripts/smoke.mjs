@@ -202,6 +202,23 @@ try {
       `${arrowsOf(withC)} | ${arrowsOf(thenC)} | ${arrowsOf(thenFollow)} | a ${bp.a.y}, b ${bp.b.y}, c ${bp.c.y}`);
     const conv = core.readStory(core.convertToBeats("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One   # first\n  - wait: 1\n  - objective: Two\n  - done\n"));
     check(conv.story?.beats.map((b) => `${b.name}:${b.steps.length}`).join() === "01:1,02:1", "Convert to beats turns a steps: list into beats", conv.problems.map((x) => x.message).join("; "));
+    // Music and sound: made as the game's quests post them, read back in words; a name that is neither the
+    // game's nor one of the project's custom sounds gets a checklist item, which ticks once the sound exists.
+    const soundFile = path.join(proj, "sound_test.quest.yaml");
+    fs.writeFileSync(soundFile, "quest: Sound Test\nid: sound_test\nauthor: edgequest\nbeats:\n  a:\n    objective: Listen\n    steps:\n      - music: mus_q104_drone_flight_01_START\n      - scene: s\n      - sound: edgewave_test\n      - music: mus_q104_drone_flight_02_STOP\n      - done\nscenes:\n  s:\n    - V: Hear that?\n    - sound: sa_airdrop_package_land\n    - V: There it is.\n    - sound: sa_nope_not_a_sound\n");
+    const sm = await core.makeQuest(proj, soundFile, bridge, { index: idx, noCheck: true });
+    const sArchive = path.join(proj, "source", "archive", "mod", "edgequest", "sound_test");
+    const sWords = sm.problems.length ? "" : core.questMarkdown("sound", core.readQuestFile(JSON.parse((await bridge.fileToJson(path.join(sArchive, "sound_test.questphase"))).json)));
+    const sScene = sm.problems.length ? "" : (await bridge.fileToJson(path.join(sArchive, "scenes", "s.scene"))).json;
+    const audio = [...sScene.matchAll(/"audioEventName":\s*\{[^}]*"\$value":\s*"([^"]+)"/g)].map((x) => x[1]).join();
+    const soundItems = sm.checklist.filter((i) => i.found?.startsWith("sound/")).map((i) => `${i.found}${i.done ? "+" : ""}`).join();
+    fs.mkdirSync(path.join(proj, "source", "resources"), { recursive: true });
+    fs.writeFileSync(path.join(proj, "source", "resources", "info.json"), JSON.stringify({ name: "smoke", customSounds: [{ name: "edgewave_test", type: "mod_sfx_low_occlusion", file: "edgewave_test.wav" }] }));
+    const afterCustom = core.storyChecklist(fs.readFileSync(soundFile, "utf8"), proj).items.filter((i) => i.found?.startsWith("sound/")).map((i) => `${i.found}${i.done ? "+" : ""}`).join();
+    check(!sm.problems.length && /Play music mus_q104_drone_flight_01_START/.test(sWords) && /Play sound edgewave_test on V/.test(sWords) && /Play music mus_q104_drone_flight_02_STOP/.test(sWords) &&
+      audio === "sa_airdrop_package_land,sa_nope_not_a_sound" && soundItems === "sound/edgewave_test,sound/sa_nope_not_a_sound" && afterCustom === "sound/edgewave_test+,sound/sa_nope_not_a_sound",
+      "music and sound: phase nodes and scene events as the game's, read back in words; unknown names on the checklist until a custom sound exists",
+      sm.problems.map((x) => x.message).join("; ") || `${audio} | ${soundItems} | ${afterCustom} | ${sWords.split("\n").filter((l) => /Play/.test(l)).join(" / ")}`);
     const every = core.assignVoiceIds(storyNow, true);
     const after = core.readStory(every.text).story;
     check(every.added === 2 && core.storyLines(after).every((l) => l.voice?.id), "preparing for voicing gives every line a voice id, and nothing else", `${every.added} added`);

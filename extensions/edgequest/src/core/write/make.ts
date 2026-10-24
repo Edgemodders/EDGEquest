@@ -20,6 +20,8 @@ import { writeScene } from "./scene";
 import { writeOnscreens, writeSubtitleMap, writeSubtitles } from "./texts";
 import { assignVoiceIds, readVoiceRecord } from "../voice";
 import { Instances, cr2wJson } from "./wk";
+import { customSoundNames, soundEvents } from "../soundEvents";
+import { defaultCacheDir } from "../config";
 
 export interface MadeFile {
   /** Path in the project, with forward slashes: source/archive/mod/... or source/resources/... */
@@ -45,6 +47,8 @@ export interface MakeOptions {
   force?: boolean;
   /** The quest index: the game map markers (and their world nodes) places are named by. */
   index?: QuestIndex;
+  /** Where the game's sound event names are cached; EDGEquest's cache folder by default. */
+  cacheDir?: string;
   /** Skip quest_check (tests). */
   noCheck?: boolean;
 }
@@ -174,7 +178,8 @@ export async function makeQuest(project: string, storyFile: string, bridge: Brid
 
   // The checklist: the stand-ins this make found go in the story file's todo:, kept up to date; voice takes
   // count from EDGEwave's record. The story file is written with it, and with any voice ids given above.
-  const list = syncChecklist(text, findStandIns(story, readVoiceRecord(project, story.id)));
+  const sounds = { game: await soundEvents(bridge, options.cacheDir ?? defaultCacheDir()).catch(() => undefined), custom: customSoundNames(project) };
+  const list = syncChecklist(text, findStandIns(story, readVoiceRecord(project, story.id), sounds.game && { game: sounds.game, custom: sounds.custom }));
   result.checklist = list.items;
   if (list.changed || ids.added) { fs.writeFileSync(storyFile, list.text, "utf8"); result.storyUpdated = true; }
 

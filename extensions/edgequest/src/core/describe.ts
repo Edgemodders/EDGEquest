@@ -324,6 +324,18 @@ export function describeNode(n: QuestNode, h: Handles, incoming: QuestEdge[] = [
       if (t.$type === "questTogglePrefabVariant_NodeType") return out("world", `Switch world variants of ${(t.params ?? []).map((p: Json) => node(deref(p, h)?.prefabNodeRef, refs)).join(", ")}`);
       if (t.$type === "questShowWorldNode_NodeType") return out("world", `${flag(t.show, true) ? "Show" : "Hide"} ${node(t.objectRef, refs)}`);
       break;
+    case "questAudioNodeDefinition":
+      if (t.$type === "questAudioEventNodeType") {
+        const music = flag(t.isMusic, false);
+        const events = [str(t.event?.event), ...(t.events ?? []).map((e: Json) => str(e.event)), ...(t.musicEvents ?? []).map((e: Json) => str(e.event))].filter((e) => e && e !== "None");
+        const switches = (t.switches ?? []).map((s: Json) => `${str(s.name)} to ${str(s.value)}`);
+        const on = flag(t.isPlayer, false) ? " on V" : str(t.objectRef?.reference) && str(t.objectRef?.reference) !== "0" ? ` on ${who(t.objectRef, refs, h)}` : "";
+        const said = [events.length ? `Play ${music ? "music" : "sound"} ${events.join(", ")}${on}` : "", switches.length ? `set ${switches.join(", ")}` : ""].filter(Boolean).join("; ");
+        if (said) return out("world", said.charAt(0).toUpperCase() + said.slice(1));
+      }
+      if (t.$type === "questAudioSwitchNodeType") return out("world", `Set ${flag(t.isMusic, false) ? "music " : ""}switch ${str(t.switch?.name)} to ${str(t.switch?.value)}`);
+      if (t.$type === "questAudioMixNodeType") return out("world", `Sound mix ${str(t.mixSignpost)}`);
+      break;
     case "questGameManagerNodeDefinition":
       if (t.$type === "questGameplayRestrictions_NodeType") return out("player", str(t.action) === "RemoveAllRestrictions" ? `Lift all restrictions${str(t.source) ? ` from ${str(t.source)}` : ""}` : `${str(t.action) === "RemoveRestriction" ? "Lift" : "Add"} restrictions ${(t.restrictionIDs ?? []).map((r: Json) => str(r).replace(/^GameplayRestriction\./, "")).join(", ")}`);
       break;

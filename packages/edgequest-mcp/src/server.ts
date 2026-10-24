@@ -162,7 +162,7 @@ server.registerTool(
       if (file?.toLowerCase().endsWith(".quest.yaml")) {
         const read = readStory(fs.readFileSync(file, "utf8"));
         if (!read.story) return text(`The story file has problems:\n${read.problems.map((x) => `- ${x.line ? `line ${x.line}, ` : ""}${x.at}: ${x.message}`).join("\n")}`);
-        const list = storyChecklist(fs.readFileSync(file, "utf8")).items;
+        const list = storyChecklist(fs.readFileSync(file, "utf8"), path.dirname(file), cacheDir).items;
         return text(`# ${read.story.title}\n\n${storyboardMarkdown(read.story, storyboard(read.story, list))}`);
       }
       const { json, title } = await loadJson({ path: p, file });
@@ -253,7 +253,7 @@ server.registerTool(
       const parts: string[] = [];
       for (const f of files) {
         if (!fs.existsSync(f)) throw new Error(`No such file: ${f}`);
-        const c = storyChecklist(fs.readFileSync(f, "utf8"), path.dirname(f));
+        const c = storyChecklist(fs.readFileSync(f, "utf8"), path.dirname(f), cacheDir);
         parts.push(`## ${path.basename(f)}\n\n${checklistMarkdown(c.items)}` +
           (c.current ? "" : `\n\nThe story file has ${c.problems.length} problem(s), so the stand-ins in it were not looked for: ${c.problems.slice(0, 5).map((p) => `${p.at}: ${p.message}`).join(" ")}`));
       }
@@ -312,7 +312,7 @@ server.registerTool(
 function storySummary(file: string): string {
   const src = fs.readFileSync(file, "utf8");
   const read = readStory(src);
-  const list = storyChecklist(src, path.dirname(file));
+  const list = storyChecklist(src, path.dirname(file), cacheDir);
   const open = list.items.filter((i) => !i.done);
   const parts = [`Story file: ${file}`];
   if (!read.story) parts.push(`${read.problems.length} problem(s); fix them, the quest cannot be made until then:\n${read.problems.map((x) => `- ${x.line ? `line ${x.line}, ` : ""}${x.at}: ${x.message}`).join("\n")}`);
@@ -323,7 +323,7 @@ function storySummary(file: string): string {
 
 /** Makes a story's game files and says what happened. */
 async function makeStory(file: string): Promise<string> {
-  const r = await makeQuest(path.dirname(file), file, await getBridge(), { index: loadIndex(cacheDir) });
+  const r = await makeQuest(path.dirname(file), file, await getBridge(), { index: loadIndex(cacheDir), cacheDir });
   const lines = [
     r.problems.length ? `Not made: ${r.problems.length} problem(s):\n${r.problems.map((x) => `- ${x.line ? `line ${x.line}, ` : ""}${x.at}: ${x.message}`).join("\n")}` : `Made: ${r.files.map((f) => `${f.file} (${f.result})`).join(", ")}.`,
     ...r.findings.filter((f) => f.level !== "info").map((f) => `- quest_check ${f.level}: ${f.message}`),
@@ -334,9 +334,10 @@ async function makeStory(file: string): Promise<string> {
 
 const StoryFormat =
   "A story file (<project>\\<id>.quest.yaml) holds: quest (title), id, author, type (side or minor), description, places (name: { marker: <a game map marker's journal path>, area: \"#<trigger area>\" }), " +
-  "beats (name: { objective, marker?, steps: [ { arrive: <place> } | { wait: <seconds> } | { scene: <name> } | { set: <fact> } | done | failed ], next? }), " +
-  "scenes (name: [ { V: <line>, voice?: { direction, say } } | { choice: { <option text>: [ ...items, { go: <beat> } ] } } | { set: <fact> } ]) and todo (the checklist). " +
-  "Beats run in order (next: <beat> goes elsewhere, next: none stops there); a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]).";
+  "beats (name: { objective, marker?, steps: [ { arrive: <place> } | { wait: <seconds> } | { scene: <name> } | { set: <fact> } | { music: <music cue event> } | { sound: <sound event> } | done | failed ], next? }), " +
+  "scenes (name: [ { V: <line>, voice?: { direction, say } } | { choice: { <option text>: [ ...items, { go: <beat> } ] } } | { set: <fact> } | { sound: <sound event> } ]) and todo (the checklist). " +
+  "Beats run in order (next: <beat> goes elsewhere, next: none stops there); a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]). " +
+  "music starts or stops one of the game's music cues (mus_<quest>_..._START, then its _STOP); sound plays a game sound event on V, or a custom sound made with EDGEwave (edgewave_<name>). EDGEwave's MCP tools sound_events and sound_custom find and make them; a name that is neither the game's nor the project's gets a checklist item.";
 
 server.registerTool(
   "quest_new",

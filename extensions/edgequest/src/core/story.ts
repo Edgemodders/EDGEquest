@@ -38,6 +38,8 @@
 import { parseDocument } from "yaml";
 import { findStandIns, readChecklist, syncChecklist, TemplateDescription, type ChecklistItem } from "./checklist";
 import { readVoiceRecord, type LineVoice } from "./voice";
+import { customSoundNames, loadSoundEvents } from "./soundEvents";
+import { defaultCacheDir } from "./config";
 
 export type QuestType = "side" | "minor";
 
@@ -60,6 +62,10 @@ export type StoryStep =
   | { kind: "wait"; seconds: number }
   | { kind: "scene"; scene: string }
   | { kind: "set"; fact: string; value: number; add: boolean }
+  /** Posts one of the game's sound events (or a custom sound's, from EDGEwave): music starts or stops a
+   *  music cue (a mus_ event), sound plays on V. */
+  | { kind: "music"; event: string }
+  | { kind: "sound"; event: string }
   | { kind: "done" }
   | { kind: "failed" };
 
@@ -81,6 +87,8 @@ export type SceneItem =
   | { kind: "line"; speaker: string; text: string; voice?: LineVoice }
   | { kind: "choice"; options: { text: string; then: SceneItem[] }[] }
   | { kind: "set"; fact: string; value: number; add: boolean }
+  /** A sound event played on V at this point of the scene. */
+  | { kind: "sound"; event: string }
   /** Ends the scene and goes on to this beat. */
   | { kind: "go"; beat: string };
 
@@ -122,6 +130,8 @@ const Name = /^[a-z][a-z0-9_]*$/;
 /** A beat's name is its objective's id: older files numbered them ("01"). */
 const BeatName = /^[a-z0-9_]+$/;
 const Speakers = new Set(["V"]);
+/** A sound event's name, as the game's list and REDmod custom sounds write them. */
+const EventName = /^[A-Za-z0-9_]+$/;
 
 /** The beats a scene can go to, in the order its go: items name them. */
 export function sceneGoes(spec: SceneSpec): string[] {
@@ -211,9 +221,17 @@ export function readStory(text: string): StoryRead {
     }
     return voice;
   };
+  const readEvent = (v: unknown, p: (string | number)[], where: string, kind: "music" | "sound"): string | undefined => {
+    const event = typeof v === "string" ? v.trim() : "";
+    if (EventName.test(event)) return event;
+    add(p, where, kind === "music"
+      ? `music names a music cue, a sound event such as mus_q104_drone_flight_01_START (and its _STOP to end it). EDGEwave's Sound Events finds them.`
+      : `sound names a sound event, such as sa_airdrop_package_land, or a custom sound's event from EDGEwave (edgewave_<name>).`);
+    return undefined;
+  };
   const readItems = (list: unknown, path: (string | number)[], at: string, speakers: Set<string>): SceneItem[] => {
     const items: SceneItem[] = [];
-    if (!Array.isArray(list)) { add(path, at, "A scene is a list of lines (V: text), choices, facts to set and go: <beat>."); return items; }
+    if (!Array.isArray(list)) { add(path, at, "A scene is a list of lines (V: text), choices, facts to set, sounds and go: <beat>."); return items; }
     list.forEach((it, i) => {
       const p = [...path, i], where = `${at} ${i + 1}`;
       if (!it || typeof it !== "object" || Array.isArray(it)) { add(p, where, `"${String(it)}" is not a line. Write a line as V: text.`); return; }
@@ -232,6 +250,9 @@ export function readStory(text: string): StoryRead {
         const f = readFact(o.set);
         if (!f) add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }.");
         else items.push({ kind: "set", ...f });
+      } else if (keys.length === 1 && keys[0] === "sound") {
+        const event = readEvent(o.sound, [...p, "sound"], where, "sound");
+        if (event) items.push({ kind: "sound", event });
       } else if (keys.filter((k) => k !== "voice").length === 1) {
         const speaker = keys.find((k) => k !== "voice")!;
         if (!speakers.has(speaker)) { add(p, where, `"${speaker}" cannot speak in this scene. Speakers here: ${[...speakers].join(", ")}.`); return; }
@@ -253,7 +274,7 @@ export function readStory(text: string): StoryRead {
   }
 
   // Beats, or the older steps: list read as beats.
-  const StepKinds = "arrive, wait, scene, set, done, failed";
+  const StepKinds = "arrive, wait, scene, set, music, sound, done, failed";
   const readStep = (s: unknown, p: (string | number)[], where: string): StoryStep | undefined => {
     if (s === "done" || s === "failed") return { kind: s };
     if (!s || typeof s !== "object" || Array.isArray(s)) { add(p, where, `"${String(s)}" is not a step. Steps: ${StepKinds}.`); return undefined; }
@@ -279,6 +300,11 @@ export function readStory(text: string): StoryRead {
       const f = readFact(o.set);
       if (!f) { add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }."); return undefined; }
       return { kind: "set", ...f };
+    }
+    for (const kind of ["music", "sound"] as const) {
+      if (!(kind in o)) continue;
+      const event = readEvent(o[kind], [...p, kind], where, kind);
+      return event ? { kind, event } : undefined;
     }
     add(p, where, "objective" in o ? "A beat has one objective, under its name. Start a new beat for the next objective." : `Unknown step ${Object.keys(o).join(", ")}. Steps: ${StepKinds}.`);
     return undefined;
@@ -372,7 +398,7 @@ export function readStory(text: string): StoryRead {
 /** A story file's checklist as the next make would leave it, without writing anything: the items written in
  *  todo: plus the stand-ins found now; with the project, voice takes count from EDGEwave's record. A story
  *  file with problems gives only what todo: says. */
-export function storyChecklist(text: string, project?: string): { items: ChecklistItem[]; problems: StoryProblem[]; current: boolean } {
+export function storyChecklist(text: string, project?: string, cacheDir = defaultCacheDir()): { items: ChecklistItem[]; problems: StoryProblem[]; current: boolean } {
   const read = readStory(text);
   if (!read.story) {
     let raw: unknown;
@@ -380,7 +406,9 @@ export function storyChecklist(text: string, project?: string): { items: Checkli
     return { items: readChecklist(raw).items, problems: read.problems, current: false };
   }
   const record = project ? readVoiceRecord(project, read.story.id) : undefined;
-  return { items: syncChecklist(text, findStandIns(read.story, record)).items, problems: [], current: true };
+  const game = loadSoundEvents(cacheDir)?.names;
+  const sounds = game && { game, custom: project ? customSoundNames(project) : new Set<string>() };
+  return { items: syncChecklist(text, findStandIns(read.story, record, sounds)).items, problems: [], current: true };
 }
 
 function readFact(v: unknown): { fact: string; value: number; add: boolean } | undefined {

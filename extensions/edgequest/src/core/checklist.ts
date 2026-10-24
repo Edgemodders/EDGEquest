@@ -16,6 +16,7 @@
 import { isMap, isScalar, isSeq, parseDocument, YAMLMap } from "yaml";
 import type { Story } from "./story";
 import { hasPrompt, sceneLines, takeStatus, type VoiceRecord } from "./voice";
+import { storySounds, type SoundNames } from "./soundEvents";
 
 export interface ChecklistItem {
   /** What to do, in plain words. */
@@ -44,7 +45,7 @@ const lines = (n: number) => `${n} line${n === 1 ? "" : "s"}`;
 
 /** The stand-ins in a story. With EDGEwave's record, a scene's voice item counts the lines with a current
  *  take, and ticks itself once every line has one. */
-export function findStandIns(story: Story, record?: VoiceRecord): FoundItem[] {
+export function findStandIns(story: Story, record?: VoiceRecord, sounds?: SoundNames): FoundItem[] {
   const found: FoundItem[] = [];
   found.push({ found: "description", do: "Write the quest's description: the journal still shows the template's.", settled: story.description !== TemplateDescription });
   for (const sc of story.scenes.values()) {
@@ -64,6 +65,20 @@ export function findStandIns(story: Story, record?: VoiceRecord): FoundItem[] {
         : `Voice the ${lines(n)} in the scene ${sc.name}. ${until}`,
       tool: "EDGEwave",
       settled: !todo,
+    });
+  }
+  // A music or sound event that is neither the game's nor one of the project's custom sounds plays nothing.
+  // Without the game's list (never read yet) nothing is said about them.
+  if (sounds) for (const s of storySounds(story)) {
+    if (found.some((f) => f.found === `sound/${s.event}`)) continue;
+    const what = s.music ? "music cue" : "sound";
+    found.push({
+      found: `sound/${s.event}`,
+      do: s.event.startsWith("edgewave_")
+        ? `Make the ${what} ${s.event} (${s.where}) with EDGEwave's Custom Sound, in this project. Until then it plays nothing.`
+        : `Pick the ${what} for ${s.where}: ${s.event} is not one of the game's sound events or this project's custom sounds, so it plays nothing. EDGEwave's Sound Events finds them.`,
+      tool: "EDGEwave",
+      settled: sounds.game.has(s.event) || sounds.custom.has(s.event),
     });
   }
   return found;

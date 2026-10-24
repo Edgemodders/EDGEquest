@@ -87,13 +87,24 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
     let i = 0;
     while (i < items.length) {
       const it = items[i];
-      if (it.kind === "line") {
-        // Consecutive lines share one section.
+      if (it.kind === "line" || it.kind === "sound") {
+        // Consecutive lines share one section; a sound plays in it on V where it stands, taking no time.
         const id = nextNode++;
         const events: Json[] = [];
         let t = 0;
-        while (i < items.length && items[i].kind === "line") {
-          const l = items[i] as Extract<SceneItem, { kind: "line" }>;
+        while (i < items.length && (items[i].kind === "line" || items[i].kind === "sound")) {
+          const item = items[i];
+          if (item.kind === "sound") {
+            const eventId = key(`${path}/${i}/sound`);
+            events.push(handle({
+              $type: "scnAudioEvent", ambientUniqueName: cname("None"), audioEventName: cname(item.event), duration: 0, emitterName: cname("default"), executionTagFlags: 0,
+              fastForwardSupport: "MuteDuringFastForward", id: { $type: "scnSceneEventId", id: eventId }, performer: { $type: "scnPerformerId", id: V * 256 + 1 }, scalingData: null, startTime: t, type: "0",
+            }));
+            eventSymbols.push({ $type: "scnSceneEventSymbol", editorEventId: String(268435456 + eventSymbols.length), originNodeId: nodeId(id), sceneEventIds: [{ $type: "scnSceneEventId", id: eventId }] });
+            i++;
+            continue;
+          }
+          const l = item as Extract<SceneItem, { kind: "line" }>;
           const itemId = lineId();
           const ruid = lineKey(story, spec.name, `${path}/${i}`, l.voice?.id); // the same id sceneLines gives
           lines.push({
@@ -147,7 +158,7 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         link(ends, e);
         ends = [];
         i++;
-      } else {
+      } else if (it.kind === "choice") {
         const id = nextNode++;
         const opts: Json[] = [];
         for (const [j, o] of it.options.entries()) {

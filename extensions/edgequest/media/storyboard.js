@@ -224,7 +224,7 @@
     const go = b.next && !card.ending ? ` <a data-select="${esc(b.next)}" title="Show that beat">→</a>` : "";
     const then = `<span class="then">Then ${pick}${go}${b.next && !card.ending ? `<span class="muted">, unless a choice goes elsewhere.</span>` : ""}</span>`;
     const steps = b.steps.map((s) => `<li class="step-row${s.never ? " never" : ""}"${s.never ? ' title="Never happens: every way out of the scene before it goes on to another beat."' : ""}>
-        <span class="grow">${esc(s.words)}</span>${tools({ up: !s.first, down: !s.last, attrs: `data-beat="${esc(b.name)}" data-step="${s.index}"`, act: "step" })}</li>`).join("");
+        <span class="grow">${s.sound ? `${s.sound.kind === "music" ? "♫" : "♪"} ${s.sound.kind} ${soundLink(s.sound.kind, s.sound.event, ["beats", b.name, "steps", s.index])}` : esc(s.words)}</span>${tools({ up: !s.first, down: !s.last, attrs: `data-beat="${esc(b.name)}" data-step="${s.index}"`, act: "step" })}</li>`).join("");
     const scenes = b.scenes.map((s) => {
       const rows = s.rows.map((r) => row(r, s)).join("");
       return `<h3>💬 ${esc(s.name)}${s.call ? ` <span class="muted">phone call with ${esc(s.call)}</span>` : ""}${s.lines ? `<button class="small" data-act="generate" data-scene="${esc(s.name)}">Voice all ${plural(s.lines, "line")}</button>` : ""}</h3>${rows}`;
@@ -240,6 +240,11 @@
     </section>`;
   }
 
+  /** A music or sound event's name; clicking it picks another. */
+  function soundLink(kind, event, at) {
+    return `<a data-act="editSound" data-kind="${kind}" data-event="${esc(event)}" data-at="${esc(JSON.stringify(at))}" title="Pick another ${kind === "music" ? "music cue" : "sound"}"><code>${esc(event)}</code></a>`;
+  }
+
   /** ↑ ↓ ✕ for a row; `attrs` say which row, `act` which kind of thing it is. */
   function tools({ up, down, attrs, act }) {
     return `<span class="tools">
@@ -252,11 +257,12 @@
     const d = `d${Math.min(r.depth, 6)}`;
     const at = r.list ? `data-list="${esc(JSON.stringify(r.list))}" data-index="${r.index}"` : "";
     if (r.kind === "add") {
-      return `<div class="add ${d}"><button class="small" data-act="insert" data-what="line" data-speaker="V" ${at}>+ Line</button>${scene.call ? `<button class="small" data-act="insert" data-what="line" data-speaker="${esc(scene.call)}" ${at}>+ ${esc(scene.call)}'s line</button>` : ""}<button class="small" data-act="insert" data-what="choice" ${at}>+ Choice</button></div>`;
+      return `<div class="add ${d}"><button class="small" data-act="insert" data-what="line" data-speaker="V" ${at}>+ Line</button>${scene.call ? `<button class="small" data-act="insert" data-what="line" data-speaker="${esc(scene.call)}" ${at}>+ ${esc(scene.call)}'s line</button>` : ""}<button class="small" data-act="insert" data-what="choice" ${at}>+ Choice</button><button class="small" data-act="addSound" ${at} title="A sound played on V at this point">+ Sound</button></div>`;
     }
     if (r.kind === "choice") {
       return `<div class="row choice ${d}"><span class="grow">◆ Choice <button class="small" data-act="addOption" data-choice="${esc(JSON.stringify(r.choice))}">+ Option</button></span>${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="choice"`, act: "item" })}</div>`;
     }
+    if (r.kind === "sound") return `<div class="row set ${d}"><span class="grow">♪ sound ${soundLink("sound", r.event, r.path)}</span>${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="sound"`, act: "item" })}</div>`;
     if (r.kind === "set") return `<div class="row set ${d}"><span class="grow"># ${esc(r.words)}</span>${tools({ up: !r.first, down: !r.last, attrs: `${at} data-what="set"`, act: "item" })}</div>`;
     if (r.kind === "option") {
       const opts = [`<option value="">the scene goes on</option>`, ...model.beatNames.map((n) => `<option value="${esc(n.name)}"${n.name === r.go ? " selected" : ""}>${esc(n.objective)} (${esc(n.name)})</option>`)].join("");
@@ -319,6 +325,8 @@
       else post({ type: "moveOption", choice, option, by: act === "option-up" ? -1 : 1 });
     } else if (act === "addOption") post({ type: "addOption", choice: JSON.parse(t.dataset.choice) });
     else if (act === "addStep") post({ type: "addStep", beat: t.dataset.beat });
+    else if (act === "addSound") post({ type: "addSound", list: JSON.parse(t.dataset.list), index: Number(t.dataset.index) });
+    else if (act === "editSound") post({ type: "editSound", at: JSON.parse(t.dataset.at), kind: t.dataset.kind, event: t.dataset.event });
     else if (act?.startsWith("step-")) {
       const beat = t.dataset.beat, index = Number(t.dataset.step);
       if (act === "step-remove") post({ type: "removeStep", beat, index });

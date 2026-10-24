@@ -130,6 +130,14 @@ export async function writePhase(story: Story, files: Layout, inst: Instances, a
           chain(await g.node("questFactsDBManagerNodeDefinition", { type }, ["In"], ["Out"]));
           break;
         }
+        case "music":
+        case "sound": {
+          // As the game's quests post them: a music cue on no object, a sound on V (q104's phases, 2026-10-24).
+          const music = s.kind === "music";
+          const type = handle(await inst.make("questAudioEventNodeType", { event: { $type: "audioAudEventStruct", event: cname(s.event) }, isMusic: music ? 1 : 0, isPlayer: music ? 0 : 1 }));
+          chain(await g.node("questAudioNodeDefinition", { type }, ["In"], ["Out"]));
+          break;
+        }
         case "done":
         case "failed": {
           const state = s.kind === "done" ? "Succeeded" : "Failed";
