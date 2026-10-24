@@ -43,7 +43,7 @@
       <div class="kind">Storyboard</div>
       <h1>${esc(model.title)}</h1>
       <div class="muted">${model.id ? `<code>${esc(model.id)}</code>` : ""}${model.description ? ` · ${esc(model.description)}` : ""}</div>
-      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-act="make" title="Make the quest's game files from this story (saving makes them too)">Make</button><button data-act="made" title="The game files made from this story, in plain words">Made files</button><button data-yaml="0">Open YAML</button></div>
+      <div class="actions"><button class="primary" data-act="addBeat">+ Beat</button><button data-act="make" title="Make the quest's game files from this story (saving makes them too)">Make</button><button data-act="made" title="The game files made from this story, in plain words">Made files</button><button data-act="refresh" title="Read the story and its voice takes again, lay the board out afresh and fit it in view">Refresh</button><button data-yaml="0">Open YAML</button></div>
     </header>`;
   }
 
@@ -213,7 +213,16 @@
     const b = model.beats[selected];
     if (!b) return "";
     const card = model.board.cards.find((c) => c.beat === b.name);
-    const then = card.ending ? `The quest ${card.ending === "failed" ? "fails" : "succeeds"} here.` : b.next ? `Then <a data-select="${esc(b.next)}">${esc(model.beats[b.next]?.objective ?? b.next)}</a>, unless a choice goes elsewhere.` : "The quest stays open here: no beat follows and it does not end.";
+    // What follows the beat when no choice says otherwise: the grey arrow on the board.
+    const value = card.ending ? (card.ending === "failed" ? "failed" : "done") : !b.next ? "none" : b.next === b.follows ? "follow" : b.next;
+    const choices = [
+      ...(b.follows ? [["follow", `${model.beats[b.follows]?.objective ?? b.follows} (next in the list)`]] : []),
+      ...model.beatNames.filter((n) => n.name !== b.name && n.name !== b.follows).map((n) => [n.name, `${n.objective} (${n.name})`]),
+      ["none", "nothing: the quest stays open"], ["done", "the quest succeeds"], ["failed", "the quest fails"],
+    ];
+    const pick = `<select data-then="${esc(b.name)}" title="What happens after this beat when no choice in it goes elsewhere: the grey arrow on the board">${choices.map(([v, words]) => `<option value="${esc(v)}"${v === value ? " selected" : ""}>${esc(words)}</option>`).join("")}</select>`;
+    const go = b.next && !card.ending ? ` <a data-select="${esc(b.next)}" title="Show that beat">→</a>` : "";
+    const then = `<span class="then">Then ${pick}${go}${b.next && !card.ending ? `<span class="muted">, unless a choice goes elsewhere.</span>` : ""}</span>`;
     const steps = b.steps.map((s) => `<li class="step-row${s.never ? " never" : ""}"${s.never ? ' title="Never happens: every way out of the scene before it goes on to another beat."' : ""}>
         <span class="grow">${esc(s.words)}</span>${tools({ up: !s.first, down: !s.last, attrs: `data-beat="${esc(b.name)}" data-step="${s.index}"`, act: "step" })}</li>`).join("");
     const scenes = b.scenes.map((s) => {
@@ -223,7 +232,8 @@
     return `<section class="beat">
       <h2>${esc(b.objective)}</h2>
       <div class="actions"><button data-act="rename" data-beat="${esc(b.name)}">Rename</button><button data-act="addBeat" data-after="${esc(b.name)}">+ Beat after</button><button data-act="delete" data-beat="${esc(b.name)}">Delete</button></div>
-      <p class="facts">Beat <code>${esc(b.name)}</code>${b.marker ? ` · marker at <code>${esc(b.marker)}</code>` : ""}. ${then}</p>
+      <p class="facts">Beat <code>${esc(b.name)}</code>${b.marker ? ` · marker at <code>${esc(b.marker)}</code>` : ""}.</p>
+      <p class="facts">${then}</p>
       <ol class="steps">${steps}</ol>
       <div class="add"><button class="small" data-act="addStep" data-beat="${esc(b.name)}">+ Step</button></div>
       ${scenes}
@@ -296,6 +306,7 @@
     else if (act === "convert") post({ type: "convert" });
     else if (act === "make") post({ type: "make" });
     else if (act === "made") post({ type: "made" });
+    else if (act === "refresh") { view = undefined; save(); post({ type: "ready" }); }
     else if (act === "generate") post({ type: "generate", scene: t.dataset.scene, line: t.dataset.line ? JSON.parse(t.dataset.line) : undefined });
     else if (act === "insert") post({ type: "insert", list: JSON.parse(t.dataset.list), index: Number(t.dataset.index), what: t.dataset.what, speaker: t.dataset.speaker });
     else if (act?.startsWith("item-")) {
@@ -321,6 +332,7 @@
   app.addEventListener("change", (e) => {
     const t = e.target;
     if (t.dataset.option) post({ type: "go", option: JSON.parse(t.dataset.option), beat: t.value });
+    else if (t.dataset.then) post({ type: "then", beat: t.dataset.then, then: t.value });
     else if (t.dataset.todo !== undefined) post({ type: "todo", index: Number(t.dataset.todo), done: t.checked });
     else if (t.dataset.optionName !== undefined) { if (t.value.trim() && t.value.trim() !== t.dataset.optionName) post({ type: "renameOption", choice: JSON.parse(t.dataset.choice), option: t.dataset.optionName, to: t.value }); else t.value = t.dataset.optionName; }
     else if (t.dataset.textOf) { if (t.value.trim()) post({ type: "line", line: JSON.parse(t.dataset.textOf), text: t.value }); else render(); }

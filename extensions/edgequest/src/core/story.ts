@@ -73,7 +73,7 @@ export interface Beat {
   /** Its steps. done or failed, last, ends the quest. */
   steps: StoryStep[];
   /** The beat after this one when no choice says otherwise: next:, or the next beat in the list. Absent on
-   *  an ending, and on a last beat that does not end the quest. */
+   *  an ending, on next: none, and on a last beat that does not end the quest. */
   next?: string;
 }
 
@@ -296,6 +296,7 @@ export function readStory(text: string): StoryRead {
     else for (const [name, v] of Object.entries(rawBeats)) {
       const p = ["beats", name], where = `beats ${name}`;
       if (!BeatName.test(name)) add(p, where, `The beat name "${name}" must be lower case letters, digits and _.`);
+      if (name === "none") add(p, where, "A beat can't be named none: next: none says that no beat follows.");
       if (!v || typeof v !== "object" || Array.isArray(v)) { add(p, where, `The beat ${name} needs its objective: ${name}: { objective: Go home, steps: [ ... ] }`); continue; }
       const o = v as Record<string, unknown>;
       for (const k of Object.keys(o)) if (!["objective", "marker", "steps", "next"].includes(k)) add([...p, k], where, `Unknown key "${k}" in a beat. Keys: objective, marker, steps, next.`);
@@ -345,7 +346,8 @@ export function readStory(text: string): StoryRead {
     if (ending >= 0 && ending < b.steps.length - 1) add(beatPath.get(b)!, `beats ${b.name}`, `${b.steps[ending].kind} ends the quest, so it is the beat ${b.name}'s last step.`);
     const next = explicitNext.get(b);
     if (ending >= 0) { if (next) add(next.path, `beats ${b.name}`, `The beat ${b.name} ends the quest (${b.steps[ending].kind}), so it has no next.`); return; }
-    if (next && !known(next.name)) add(next.path, `beats ${b.name}`, `next: "${next.name}" is not one of the beats (${beatList()}).`);
+    if (next?.name === "none") return; // nothing follows: the quest stays open after this beat
+    if (next && !known(next.name)) add(next.path, `beats ${b.name}`, `next: "${next.name}" is not one of the beats (${beatList()}), or none.`);
     b.next = next?.name ?? beats[i + 1]?.name;
   });
   for (const g of goes) if (!known(g.beat)) add(g.path, g.at, `go: "${g.beat}" is not one of the beats (${beatList()}).`);

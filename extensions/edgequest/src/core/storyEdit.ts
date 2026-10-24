@@ -61,7 +61,15 @@ export function convertToBeats(text: string): string {
   return out(doc);
 }
 
-/** Adds a beat after another (or at the end); the new beat follows it, as the next in the list. */
+const endsQuest = (beat: unknown): boolean => {
+  const steps = isMap(beat) ? beat.get("steps", true) : undefined;
+  const last = isSeq(steps) ? steps.items[steps.items.length - 1] : undefined;
+  return isScalar(last) && (last.value === "done" || last.value === "failed");
+};
+
+/** Adds a beat after another, where it follows that beat (as the next in the list); or, with no `after`, at
+ *  the end, where nothing leads to it yet: the last beat keeps going nowhere (next: none), so adding a beat
+ *  never changes where the story goes. */
 export function addBeat(text: string, objective: string, after?: string): { text: string; name: string } {
   const doc = parse(text);
   const beats = beatsOf(doc);
@@ -72,8 +80,28 @@ export function addBeat(text: string, objective: string, after?: string): { text
   value.set("steps", new YAMLSeq());
   const at = after === undefined ? beats.items.length : beats.items.findIndex((p) => keyOf(p) === after) + 1;
   if (after !== undefined && at === 0) throw new StoryEditError(`There is no beat ${after}.`);
+  const last = beats.items[beats.items.length - 1]?.value;
+  if (after === undefined && isMap(last) && !last.has("next") && !endsQuest(last)) last.set("next", "none");
   beats.items.splice(at, 0, new Pair(new Scalar(name), value));
   return { text: out(doc), name };
+}
+
+/** What happens after a beat when no choice says otherwise: the beat after it in the list ("follow"), another
+ *  beat, nothing ("none": the quest stays open), or the quest ends ("done", "failed": the beat's last step). */
+export function setThen(text: string, beat: string, then: string): string {
+  const doc = parse(text);
+  const beats = beatsOf(doc);
+  const b = beats.get(beat, true);
+  if (!isMap(b)) throw new StoryEditError(`There is no beat ${beat}.`);
+  if (!["follow", "none", "done", "failed"].includes(then) && !beats.has(then)) throw new StoryEditError(`There is no beat ${then}.`);
+  const found: unknown = b.get("steps", true);
+  const steps = isSeq(found) ? found : new YAMLSeq();
+  if (!isSeq(found)) b.set("steps", steps);
+  if (endsQuest(b)) steps.items.pop();
+  b.delete("next");
+  if (then === "done" || then === "failed") steps.items.push(new Scalar(then));
+  else if (then !== "follow") b.set("next", then);
+  return out(doc);
 }
 
 export function renameObjective(text: string, beat: string, objective: string): string {

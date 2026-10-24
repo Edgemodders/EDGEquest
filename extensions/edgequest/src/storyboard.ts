@@ -8,7 +8,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import {
   addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption,
-  renameObjective, renameOption, sceneLines, setChoiceGo, setLine, setLineVoice, setTodoDone,
+  renameObjective, renameOption, sceneLines, setChoiceGo, setLine, setLineVoice, setThen, setTodoDone,
   voiceArchiveDir, StoryEditError,
 } from "./core";
 
@@ -21,6 +21,7 @@ type Message =
   | { type: "rename"; beat: string }
   | { type: "delete"; beat: string }
   | { type: "go"; option: Path; beat?: string }
+  | { type: "then"; beat: string; then: string }
   | { type: "voice"; line: Path; direction: string; say: string }
   | { type: "todo"; index: number; done: boolean }
   | { type: "convert" }
@@ -114,6 +115,7 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
         return this.edit(document, (t) => deleteBeat(t, m.beat));
       }
       case "go": return this.edit(document, (t) => setChoiceGo(t, m.option, m.beat || undefined));
+      case "then": return this.edit(document, (t) => setThen(t, m.beat, m.then));
       case "voice": return this.edit(document, (t) => setLineVoice(t, m.line, { direction: m.direction, say: m.say }));
       case "todo": return this.edit(document, (t) => setTodoDone(t, m.index, m.done));
       case "convert": return this.edit(document, convertToBeats);

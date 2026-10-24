@@ -17,7 +17,7 @@ import { z } from "zod";
 import {
   BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
   assignVoiceIds, edgewaveLines, hasPrompt, readStory, readVoiceRecord, sceneMarkdown, storyChecklist, storyLines, storyboard, storyboardMarkdown, takeStatus, usedBy,
-  voiceArchiveDir, voiceFile, vscodeUserSettings, addBeat, beatNameFor, convertToBeats, deleteBeat, isProject, makeQuest, optionPath, renameObjective, setChoiceGo, setLineVoice, setPath,
+  voiceArchiveDir, voiceFile, vscodeUserSettings, addBeat, beatNameFor, convertToBeats, deleteBeat, isProject, makeQuest, optionPath, renameObjective, setChoiceGo, setLineVoice, setPath, setThen,
   setTodoDone, storyTemplate, insertItem, moveItem, removeItem, addScene, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
@@ -336,7 +336,7 @@ const StoryFormat =
   "A story file (<project>\\<id>.quest.yaml) holds: quest (title), id, author, type (side or minor), description, places (name: { marker: <a game map marker's journal path>, area: \"#<trigger area>\" }), " +
   "beats (name: { objective, marker?, steps: [ { arrive: <place> } | { wait: <seconds> } | { scene: <name> } | { set: <fact> } | done | failed ], next? }), " +
   "scenes (name: [ { V: <line>, voice?: { direction, say } } | { choice: { <option text>: [ ...items, { go: <beat> } ] } } | { set: <fact> } ]) and todo (the checklist). " +
-  "Beats run in order; a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]).";
+  "Beats run in order (next: <beat> goes elsewhere, next: none stops there); a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]).";
 
 server.registerTool(
   "quest_new",
@@ -372,7 +372,8 @@ server.registerTool(
 );
 
 const Edit = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("addBeat"), objective: z.string(), after: z.string().optional().describe("The beat it follows; default: the end.") }),
+  z.object({ op: z.literal("addBeat"), objective: z.string(), after: z.string().optional().describe("The beat it follows; default: the end, where nothing leads to it yet.") }),
+  z.object({ op: z.literal("setThen"), beat: z.string(), then: z.string().describe("What follows the beat when no choice says otherwise: another beat's name, \"follow\" (the next beat in the list), \"none\" (the quest stays open), \"done\" or \"failed\" (the quest ends).") }),
   z.object({ op: z.literal("renameObjective"), beat: z.string(), objective: z.string() }),
   z.object({ op: z.literal("deleteBeat"), beat: z.string() }),
   z.object({ op: z.literal("setGo"), scene: z.string(), option: z.string().describe("The option's text."), beat: z.string().optional().describe("The beat it goes on to; absent: the scene goes on after the choice.") }),
@@ -390,7 +391,7 @@ server.registerTool(
   "quest_edit",
   {
     description:
-      "Changes a story file in story words, as the Storyboard does: add, rename or delete a beat, send a choice to a beat (setGo), say how a line is spoken (setVoice), tick a checklist item, " +
+      "Changes a story file in story words, as the Storyboard does: add, rename or delete a beat, say what follows a beat (setThen), send a choice to a beat (setGo), say how a line is spoken (setVoice), tick a checklist item, " +
       "add, move or remove lines, choices and steps in their lists, add a scene, convert an old steps: list to beats, or set any value by its path. The edits apply in order and the file is written once, comments kept; an edit that cannot apply stops them all. " +
       "Returns the beats, the problems and what is left on the checklist. " + StoryFormat,
     inputSchema: {
@@ -407,6 +408,7 @@ server.registerTool(
         try {
           switch (e.op) {
             case "addBeat": { const r = addBeat(src, e.objective, e.after); src = r.text; notes.push(`Added the beat ${r.name}.`); break; }
+            case "setThen": src = setThen(src, e.beat, e.then); break;
             case "renameObjective": src = renameObjective(src, e.beat, e.objective); break;
             case "deleteBeat": src = deleteBeat(src, e.beat); break;
             case "setGo": {

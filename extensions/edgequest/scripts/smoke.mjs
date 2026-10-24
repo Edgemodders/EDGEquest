@@ -187,6 +187,19 @@ try {
     check(!es.problems.length && leaveNow === "line,line,go" && /stays last/.test(refused) && choiceNow.options.map((o) => o.text).join() === "Wait here,Look around,Leave" &&
       firstLine.text === "Here it is, then." && firstLine.voice?.say && es.story.beats.find((b) => b.name === "look").steps.map((x) => x.kind).join() === "wait,scene,done" && /at least one option/.test(lastOne),
       "beat page edits: lines and choices added, moved and deleted around a go:, options added, renamed and moved, a new scene played", es.problems.map((x) => x.message).join("; ") || `${leaveNow}; ${choiceNow?.options.map((o) => o.text)}`);
+    // What follows a beat: a beat added at the end is not followed onto (the last beat gets next: none), and
+    // Then sets another beat, the next in the list, nothing, or an ending. A choice's beats sit together, in
+    // its order, centred on the beat they come from.
+    const branch = "quest: Branch\nid: branch\nauthor: me\nbeats:\n  a: { objective: A, steps: [ { scene: s } ] }\n  b: { objective: B, steps: [] }\nscenes:\n  s:\n    - choice: { One: [ { go: b } ], Two: [ { V: Hm. } ] }\n";
+    const withC = core.addBeat(branch, "C").text;
+    const arrowsOf = (text) => core.storyboard(core.readStory(text).story).arrows.map((a) => `${a.from}>${a.to}${a.choice ? `:${a.choice}` : ""}`).join();
+    const thenC = core.setThen(withC, "b", "c"), thenDone = core.setThen(thenC, "b", "done"), thenFollow = core.setThen(thenDone, "b", "follow");
+    const sent = core.setChoiceGo(withC, ["scenes", "s", 0, "choice", "Two"], "c");
+    const bp = core.boardModel(sent, storyFile).board.pos;
+    check(arrowsOf(withC) === "a>b:One,a>b" && /next: none/.test(withC) && arrowsOf(thenC) === "a>b:One,a>b,b>c" && /- done|\[\s*done\s*\]/.test(thenDone) && !/next:/.test(thenDone) &&
+      arrowsOf(thenFollow) === "a>b:One,a>b,b>c" && !/next:|done/.test(thenFollow.split("scenes:")[0].split("b:")[1]) && bp.b.y < bp.c.y && bp.a.y === (bp.b.y + bp.c.y) / 2 && bp.b.x === bp.c.x,
+      "a beat added at the end is not followed onto; Then sets another beat, an ending or the next in the list; a choice's beats sit together beside it",
+      `${arrowsOf(withC)} | ${arrowsOf(thenC)} | ${arrowsOf(thenFollow)} | a ${bp.a.y}, b ${bp.b.y}, c ${bp.c.y}`);
     const conv = core.readStory(core.convertToBeats("quest: Old\nid: old\nauthor: me\nsteps:\n  - objective: One   # first\n  - wait: 1\n  - objective: Two\n  - done\n"));
     check(conv.story?.beats.map((b) => `${b.name}:${b.steps.length}`).join() === "01:1,02:1", "Convert to beats turns a steps: list into beats", conv.problems.map((x) => x.message).join("; "));
     const every = core.assignVoiceIds(storyNow, true);

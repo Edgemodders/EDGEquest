@@ -35,6 +35,8 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 - Making a quest again removes the files it made before and no longer needs, unless you changed them by hand.
 - Check Quest Mod finds a subtitles entry in the `.xl` that is not a subtitle map, subtitle files nothing loads, and map markers that would show at the world's origin.
 - The quest page says who and what a distance check measures between.
+- Storyboard: each beat page says what follows the beat when no choice goes elsewhere (the grey arrow): the next beat in the list, another beat, nothing (`next: none`, the quest stays open), or an ending. + Beat at the top adds an unlinked beat at the end, so adding a beat never changes where the story goes; + Beat after still puts it in the chain.
+- Storyboard: Refresh reads the story and its voice takes again, lays the board out afresh and fits it in view. The layout keeps the beats a choice leads to together, in the choice's order, beside the beat they come from.
 
 **Fixed**
 

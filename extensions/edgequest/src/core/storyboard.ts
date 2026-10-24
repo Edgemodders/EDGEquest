@@ -125,7 +125,9 @@ export interface BoardModel {
   usesSteps: boolean;
   board?: Board & { pos: Record<string, { x: number; y: number }>; width: number; height: number; cardW: number; cardH: number };
   beats: Record<string, {
-    name: string; objective: string; marker?: string; next?: string;
+    name: string; objective: string; marker?: string;
+    /** The beat that follows when no choice says otherwise; `follows` is the next in the list, the default. */
+    next?: string; follows?: string;
     /** Every step, in words; those after a scene whose every way out goes elsewhere never happen. */
     steps: { words: string; index: number; first: boolean; last: boolean; never: boolean }[];
     scenes: { name: string; call?: string; speakers: string[]; rows: BoardRow[]; lines: number }[];
@@ -135,19 +137,46 @@ export interface BoardModel {
   voiced: boolean;
 }
 
-/** Cards in columns: a beat sits one column right of the furthest beat earlier in the list that leads to it. */
+/** Cards in columns: a beat sits one column right of the furthest beat earlier in the list that leads to it.
+ *  In a column, a card sits level with the beats that lead to it, and the beats one choice leads to sit
+ *  together in the choice's order, centred on it; cards that would overlap push each other apart evenly. */
 function layOut(story: Story, board: Board): NonNullable<BoardModel["board"]> {
   const order = story.beats.map((b) => b.name);
-  const col: Record<string, number> = {}, rows: number[] = [];
-  const pos: Record<string, { x: number; y: number }> = {};
+  const col: Record<string, number> = {};
   order.forEach((name, i) => {
     const from = board.arrows.filter((a) => a.to === name && order.indexOf(a.from) < i && order.indexOf(a.from) >= 0).map((a) => col[a.from]);
     col[name] = from.length ? Math.max(...from) + 1 : i === 0 ? 0 : col[order[i - 1]] + 1;
-    const row = (rows[col[name]] = (rows[col[name]] ?? -1) + 1);
-    pos[name] = { x: Pad + col[name] * (CardW + GapX), y: Pad + 18 + row * (CardH + GapY) };
   });
-  const cols = Math.max(0, ...Object.values(col)) + 1, maxRows = Math.max(1, ...rows.map((r) => r + 1));
-  return { ...board, pos, width: Pad * 2 + cols * CardW + (cols - 1) * GapX, height: Pad * 2 + 18 + maxRows * CardH + (maxRows - 1) * GapY + 60, cardW: CardW, cardH: CardH };
+  const cols = Math.max(0, ...Object.values(col)) + 1, Slot = CardH + GapY;
+  // Arrows into a card from columns to its left, with their place in the board's arrows (a beat's choices in
+  // their order, then the beat that follows it), which keeps the beats one choice leads to in its order.
+  const into = (name: string) => board.arrows.flatMap((a, k) => (a.to === name && col[a.from] < col[name] ? [{ from: a.from, k }] : []));
+  const y: Record<string, number> = {};
+  for (let c = 0; c < cols; c++) {
+    const cards = order.filter((n) => col[n] === c).map((n, i) => {
+      const from = into(n).filter((a) => y[a.from] !== undefined);
+      return { n, i, target: from.length ? from.reduce((s, a) => s + y[a.from], 0) / from.length : undefined, k: Math.min(Infinity, ...from.map((a) => a.k)) };
+    });
+    cards.sort((a, b) => (a.target ?? Infinity) - (b.target ?? Infinity) || a.k - b.k || a.i - b.i);
+    // Each run of touching cards sits where its cards would like to on average (a run's sum is its cards'
+    // wished tops less their places in the run, so sum / n is the run's top).
+    const runs: { first: number; n: number; sum: number }[] = [];
+    let last: number | undefined;
+    cards.forEach((card, i) => {
+      last = card.target ?? (last === undefined ? 0 : last + Slot);
+      runs.push({ first: i, n: 1, sum: last });
+      for (let a = runs[runs.length - 2], b = runs[runs.length - 1]; a && a.sum / a.n + a.n * Slot > b.sum / b.n; a = runs[runs.length - 2], b = runs[runs.length - 1]) {
+        a.sum += b.sum - b.n * a.n * Slot;
+        a.n += b.n;
+        runs.pop();
+      }
+    });
+    for (const r of runs) for (let j = 0; j < r.n; j++) y[cards[r.first + j].n] = r.sum / r.n + j * Slot;
+  }
+  const top = Math.min(...order.map((n) => y[n])), bottom = Math.max(...order.map((n) => y[n])) - top;
+  const pos: Record<string, { x: number; y: number }> = {};
+  for (const n of order) pos[n] = { x: Pad + col[n] * (CardW + GapX), y: Pad + 18 + y[n] - top };
+  return { ...board, pos, width: Pad * 2 + cols * CardW + (cols - 1) * GapX, height: Pad * 2 + 18 + bottom + CardH + 60, cardW: CardW, cardH: CardH };
 }
 
 function sceneRows(story: Story, name: string, record: ReturnType<typeof readVoiceRecord>): { rows: BoardRow[]; lines: number } {
@@ -192,7 +221,7 @@ export function boardModel(text: string, file: string): BoardModel {
   const record = readVoiceRecord(project, story.id);
   const board = storyboard(story, list.items);
   const beats: BoardModel["beats"] = {};
-  for (const b of story.beats) {
+  story.beats.forEach((b, i) => {
     let never = false;
     const steps = b.steps.map((s, i) => {
       const row = { words: stepWords(s), index: i, first: i === 0, last: i === b.steps.length - 1, never };
@@ -201,12 +230,12 @@ export function boardModel(text: string, file: string): BoardModel {
     });
     const scenes = [...new Set(b.steps.flatMap((s) => (s.kind === "scene" ? [s.scene] : [])))];
     beats[b.name] = {
-      name: b.name, objective: b.objective, marker: b.marker, next: b.next, steps,
+      name: b.name, objective: b.objective, marker: b.marker, next: b.next, follows: story.beats[i + 1]?.name, steps,
       scenes: scenes.map((s) => {
         const call = story.scenes.get(s)?.call;
         return { name: s, call, speakers: call ? ["V", call] : ["V"], ...sceneRows(story, s, record) };
       }),
     };
-  }
+  });
   return { ...base, title: story.title, id: story.id, description: story.description, board: layOut(story, board), beats, beatNames: story.beats.map((b) => ({ name: b.name, objective: b.objective })), voiced: !!record };
 }
