@@ -307,6 +307,8 @@ async function pickSound(kind: "music" | "sound", current?: string): Promise<str
   qp.title = kind === "music" ? "Music cue (game events from EDGEwave)" : "Sound (game events from EDGEwave)";
   qp.placeholder = kind === "music" ? "Search: q104 drone, start, stop..." : "Search: door, alarm, airdrop...";
   qp.matchOnDescription = true;
+  // Play shows EDGEwave's Hear panel; the list stays open while it plays, until a sound is picked or Esc.
+  qp.ignoreFocusOut = true;
   qp.value = current ?? "";
   let seq = 0;
   const search = async (q: string) => {
