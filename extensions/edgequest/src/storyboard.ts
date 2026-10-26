@@ -46,8 +46,12 @@ type Message =
 interface EDGEwaveApi {
   readonly apiVersion: 1;
   voiceLines(o: { quest: string; lines: ReturnType<typeof edgewaveLines>; archiveDir?: string; project?: string }): Promise<unknown>;
-  soundEvents?(o: { query?: string; music?: boolean; quest?: boolean; limit?: number }): Promise<{ name: string; loops: boolean; min: number; max: number; tags: string[]; music: boolean; quest: boolean }[]>;
-  playEvent?(o: { name: string }): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** The project's own sounds (with `project`), then the game's events. */
+  soundEvents?(o: { query?: string; music?: boolean; quest?: boolean; limit?: number; project?: string }): Promise<{ name: string; loops: boolean; min: number; max: number; tags: string[]; music: boolean; quest: boolean; project?: { type: string; file?: string }; replaces?: boolean }[]>;
+  /** `show: false` plays at once with no tab (EDGEwave #8, Windows); otherwise the Hear panel. */
+  playEvent?(o: { name: string; project?: string; show?: boolean }): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Stops what playEvent plays with show: false. Not in builds before EDGEwave #8. */
+  stopSound?(): Promise<void> | void;
 }
 
 /** EDGEwave's API when it is installed and can be asked; undefined otherwise. */
@@ -170,12 +174,12 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
       }
       case "addStep": return this.addStep(document, m.beat);
       case "addSound": {
-        const event = await pickSound("sound");
+        const event = await pickSound("sound", path.dirname(document.uri.fsPath));
         if (!event) return;
         return this.edit(document, (t) => insertItem(t, m.list, m.index, { sound: event }));
       }
       case "editSound": {
-        const event = await pickSound(m.kind, m.event);
+        const event = await pickSound(m.kind, path.dirname(document.uri.fsPath), m.event);
         if (!event || event === m.event) return;
         return this.edit(document, (t) => setPath(t, [...m.at, m.kind], event));
       }
@@ -237,7 +241,7 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
       }
       case "music":
       case "sound": {
-        const event = await pickSound(pick.step);
+        const event = await pickSound(pick.step, path.dirname(document.uri.fsPath));
         if (!event) return;
         step = { [pick.step]: event };
         break;
@@ -291,9 +295,9 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
 
 const EventName = /^[A-Za-z0-9_]+$/;
 
-/** Picks a music cue or a sound event: from the game's list through EDGEwave, with Play on each; without
- *  EDGEwave, by typing its name. */
-async function pickSound(kind: "music" | "sound", current?: string): Promise<string | undefined> {
+/** Picks a music cue or a sound event: the project's own sounds and the game's, through EDGEwave, with Play
+ *  on each; without EDGEwave, by typing its name. */
+async function pickSound(kind: "music" | "sound", project: string, current?: string): Promise<string | undefined> {
   const typeIt = () => vscode.window.showInputBox({
     title: kind === "music" ? "Music cue" : "Sound", value: current,
     prompt: kind === "music" ? "A music cue's event name, such as mus_q104_drone_flight_01_START (its _STOP ends it)" : "A sound event's name, such as sa_airdrop_package_land, or edgewave_<name> for a custom sound from EDGEwave",
@@ -301,32 +305,39 @@ async function pickSound(kind: "music" | "sound", current?: string): Promise<str
   }).then((v) => v?.trim());
   const api = await edgewave();
   if (!api?.soundEvents) return typeIt();
-  const play: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon("play"), tooltip: "Play (in EDGEwave's Hear panel)" };
+  const play: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon("play"), tooltip: "Play" };
   const TypeName = "$(edit) Type a name...";
   const qp = vscode.window.createQuickPick<vscode.QuickPickItem>();
-  qp.title = kind === "music" ? "Music cue (game events from EDGEwave)" : "Sound (game events from EDGEwave)";
+  qp.title = kind === "music" ? "Music cue (game events from EDGEwave)" : "Sound (this project's and the game's, from EDGEwave)";
   qp.placeholder = kind === "music" ? "Search: q104 drone, start, stop..." : "Search: door, alarm, airdrop...";
   qp.matchOnDescription = true;
-  // Play shows EDGEwave's Hear panel; the list stays open while it plays, until a sound is picked or Esc.
+  // Play plays at once; where EDGEwave can only show its Hear panel, the list stays open while it plays,
+  // until a sound is picked or Esc.
   qp.ignoreFocusOut = true;
   qp.value = current ?? "";
   let seq = 0;
   const search = async (q: string) => {
     const mine = ++seq;
     qp.busy = true;
-    const found = await api.soundEvents!({ query: q, music: kind === "music" ? true : undefined, quest: !q && kind === "sound" ? true : undefined, limit: 200 }).catch(() => []);
+    const found = await api.soundEvents!({ query: q, music: kind === "music" ? true : undefined, quest: !q && kind === "sound" ? true : undefined, limit: 200, project }).catch(() => []);
     if (mine !== seq) return;
     qp.busy = false;
     const secs = (e: { min: number; max: number }) => (e.max ? `${e.min === e.max ? e.max.toFixed(1) : `${e.min.toFixed(1)}–${e.max.toFixed(1)}`} s` : "");
     qp.items = [
-      ...found.map((e) => ({ label: e.name, description: [e.loops ? "loops" : "", secs(e), e.music && kind === "sound" ? "music" : ""].filter(Boolean).join(" · "), detail: e.tags.join(", ") || undefined, buttons: kind === "sound" ? [play] : [] })),
-      { label: TypeName, alwaysShow: true, description: "a custom sound from EDGEwave (edgewave_<name>), or a name not listed" },
+      ...found.map((e) => ({
+        label: e.name,
+        description: [e.project ? (e.replaces ? "this project's, in place of the game's" : "this project's sound") : "", e.loops ? "loops" : "", secs(e), e.music && kind === "sound" ? "music" : ""].filter(Boolean).join(" · "),
+        detail: e.tags.join(", ") || undefined, buttons: kind === "sound" || e.project ? [play] : [],
+      })),
+      { label: TypeName, alwaysShow: true, description: "a name not listed" },
     ];
   };
   let timer: NodeJS.Timeout | undefined;
   qp.onDidChangeValue((v) => { clearTimeout(timer); timer = setTimeout(() => void search(v), 200); });
   qp.onDidTriggerItemButton(async (e) => {
-    const r = await api.playEvent?.({ name: e.item.label });
+    let r = await api.playEvent?.({ name: e.item.label, project, show: false });
+    // Builds before EDGEwave #8 ignore show and open the Hear panel; away from Windows, ask for the panel.
+    if (r && !r.ok && process.platform !== "win32") r = await api.playEvent?.({ name: e.item.label, project });
     if (r && !r.ok) void vscode.window.showInformationMessage(r.reason);
   });
   void search(qp.value);
@@ -336,5 +347,6 @@ async function pickSound(kind: "music" | "sound", current?: string): Promise<str
     qp.show();
   });
   qp.dispose();
+  void Promise.resolve(api.stopSound?.()).catch(() => undefined);
   return chosen === TypeName ? typeIt() : chosen;
 }
