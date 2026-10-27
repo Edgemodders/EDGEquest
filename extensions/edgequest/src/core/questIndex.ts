@@ -10,9 +10,9 @@ import * as path from "node:path";
 import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
 import { readQuestFile, value, type Json } from "./graph";
-import { murmur3 } from "./write/wk";
+import { fnv1a64, murmur3 } from "./write/wk";
 
-export const IndexVersion = 5;
+export const IndexVersion = 6;
 
 /** The game's compiled map marker positions. */
 const MappinsFile = "base\\worlds\\03_night_city\\_compiled\\default\\03_night_city.mappins";
@@ -162,43 +162,61 @@ export function worldRefs(json: Json): { prefabs: string[]; triggers: string[] }
   return { prefabs: [...prefabs], triggers: [...triggers] };
 }
 
+/** A world node's id: FNV-1a 64 of its full path with every "#" left out (checked on game 2.5). */
+const nodeHash = (path: string) => fnv1a64(path.replace(/#/g, ""));
+
 /**
- * Every trigger area in the game's quest prefab sectors, by NodeRef. A node's path names the prefabs it sits
- * in ("$/.../#mq000_pr_apartment/#mq000_tr_vs_apartment"); the ones game phases list are what a new phase
- * lists, or the outermost when none is.
+ * The NodeRef names a trigger node's debugName gives: "{mq000_tr_vs_apartment}", or for copies
+ * "{mws_wat_03_tr_start_}_003", which game phases name "#mws_wat_03_tr_start_003". Where the node sits right
+ * in its prefab, its hash tells whether the doubled "_" stays; where it cannot, both names are kept. A
+ * debugName with no braces ("trigger", 17 on game 2.5) is not a NodeRef name.
+ */
+export function triggerNames(debugName: string, prefab: string, hash: string): string[] {
+  if (!debugName.includes("{")) return [];
+  const raw = debugName.replace(/[{}#]/g, ""), single = raw.replace(/_{2,}/g, "_");
+  if (raw === single) return [`#${raw}`];
+  for (const n of [raw, single]) if (nodeHash(`${prefab}/${n}`) === hash) return [`#${n}`];
+  return [`#${single}`, `#${raw}`];
+}
+
+/**
+ * Every trigger area in the game's quest prefab sectors, by NodeRef. The streaming block names each quest
+ * sector's prefab ("$/.../#mq000_pr_apartment"); the "#" prefabs on that path that game phases list are what
+ * a new phase lists, or else the sector's own prefab. Read as REDbridge 0.11.0 gives game 2.5's sectors;
+ * 0.10.0's node paths are gone (on game 2.5, 5,702 of the 5,723 trigger areas phases wait in are found).
  */
 async function readAreas(bridge: BridgeClient, listed: Set<string>, failed: string[], progress: Progress): Promise<Record<string, IndexedArea>> {
-  const sectors = new Set<string>();
+  const sectors = new Map<string, string>();
   for (const b of await listGameFiles(bridge, ".streamingblock")) {
     try {
       const blk = JSON.parse((await bridge.toJson(b)).json ?? "null");
-      for (const d of blk?.Data?.RootChunk?.descriptors ?? []) { const p = value(d.data?.DepotPath); if (typeof p === "string" && QuestSector.test(p)) sectors.add(p); }
+      for (const d of blk?.Data?.RootChunk?.descriptors ?? []) {
+        const p = value(d.data?.DepotPath), prefab = value(d.questPrefabNodeRef);
+        if (typeof p === "string" && QuestSector.test(p) && typeof prefab === "string" && prefab.startsWith("$/") && !sectors.has(p)) sectors.set(p, prefab);
+      }
     } catch (e) {
       failed.push(`${b}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   const areas: Record<string, IndexedArea> = {};
   let i = 0;
-  for (const s of sectors) {
+  for (const [s, prefab] of sectors) {
     if (i++ % 200 === 0) progress("Reading the world's quest trigger areas", i, sectors.size);
     let rc: Json;
     try { rc = JSON.parse((await bridge.toJson(s)).json ?? "null")?.Data?.RootChunk; } catch (e) { failed.push(`${s}: ${e instanceof Error ? e.message : String(e)}`); continue; }
     const nodes = rc?.nodes ?? [];
     const data: Json[] = rc?.nodeData?.Data ?? rc?.nodeData ?? [];
-    for (const [k, d] of data.entries()) {
-      // Since game 2.5 (2026-10-23) REDbridge 0.10.0 reads every NodeIndex as the same number, past the end of
-      // the nodes; the entries then come one per node, in order (441 of 446 sectors read). *Inferred*, not
-      // documented: by place, 1,136 of 1,325 trigger areas have trigger names.
-      const node = nodes[d.NodeIndex] ?? (data.length === nodes.length ? nodes[k] : undefined);
+    const segs = prefab.split("/");
+    const own = segs[segs.length - 1].startsWith("#") ? segs[segs.length - 1] : prefab;
+    const chain = segs.filter((x) => x.startsWith("#") && listed.has(x));
+    const prefabs = chain.length ? chain : listed.has(prefab) ? [prefab] : [own];
+    for (const d of data) {
+      const node = nodes[Number(d.nodeIdx)];
       if (node?.Data?.$type !== "worldTriggerAreaNode") continue;
-      const full = value(d.QuestPrefabRefHash);
-      if (typeof full !== "string") continue;
-      const segs = full.split("/");
-      const chain = segs.slice(0, -1).filter((x) => x.startsWith("#"));
-      if (!chain.length) continue;
-      const prefabs = chain.filter((x) => listed.has(x));
-      const at = [d.Position?.X, d.Position?.Y, d.Position?.Z].map((n) => Math.round(Number(n ?? 0) * 100) / 100) as [number, number, number];
-      for (const alias of segs[segs.length - 1].split(";")) if (alias.startsWith("#") && !areas[alias]) areas[alias] = { at, prefabs: prefabs.length ? prefabs : [chain[0]] };
+      const p = d.transform?.position;
+      const at = [p?.X, p?.Y, p?.Z].map((n) => Math.round(Number(n ?? 0) * 100) / 100) as [number, number, number];
+      for (const name of triggerNames(String(value(node.Data.debugName) ?? ""), prefab, String(d.globalNodeId?.hash ?? "")))
+        if (!areas[name]) areas[name] = { at, prefabs };
     }
   }
   return areas;

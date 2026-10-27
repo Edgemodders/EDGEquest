@@ -69,6 +69,8 @@ try {
     check(Object.keys(idx.areas ?? {}).length > 5000 && !!door?.area && home?.prefabs.includes("#mq000_pr_apartment"), "the index knows the game's quest trigger areas and their prefabs",
       `${Object.keys(idx.areas ?? {}).length}; V's door marker's own area: ${door?.area}; ${core.DefaultPlaceArea} in ${home?.prefabs}`);
   }
+  const names = [["{mq000_tr_vs_apartment}", "0"], ["{a_}_003", "0"], ["{a_}_003", core.fnv1a64("$/x/p/a__003")], ["trigger", "0"]].map(([n, h]) => core.triggerNames(n, "$/x/#p", h));
+  check(JSON.stringify(names) === JSON.stringify([["#mq000_tr_vs_apartment"], ["#a_003", "#a__003"], ["#a__003"], []]), "a trigger node's NodeRef names come from its debugName, the node's hash settling a doubled _", JSON.stringify(names));
 
   // Writing: the New Quest template, made in a throwaway WolvenKit project, read back.
   const proj = fs.mkdtempSync(path.join(os.tmpdir(), "edgequest-smoke-"));

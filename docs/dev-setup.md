@@ -10,7 +10,7 @@ What a Windows PC needs to work on EDGEquest. The shared tools are the same as i
 | nvm for Windows and Node.js | Node 24.11.1, npm 11.14.1 | The extension and the MCP server are TypeScript, as the rest of the ecosystem | `winget install --id CoreyButler.NVMforWindows -e`, then `nvm install 24` and `nvm use 24` |
 | Python | 3.10 or later | Brand tooling | |
 | Chrome or Edge | any | Renders the brand images | Already present on Windows |
-| REDbridge | 0.10.0 or later | Reads and writes game files; 0.10.0 adds the `loc.*` texts | See [REDbridge's setup guide](https://edgemodders.github.io/REDbridge/dev-setup.html) |
+| REDbridge | 0.11.0 or later | Reads and writes game files; 0.10.0 adds the `loc.*` texts, 0.11.0 reads game 2.5 (EDGEquest's quest index needs it) | See [REDbridge's setup guide](https://edgemodders.github.io/REDbridge/dev-setup.html) |
 
 ## 2. Repository and GitHub
 
