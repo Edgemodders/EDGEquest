@@ -241,7 +241,8 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
         entityRef: { $type: "gameEntityReference", dynamicEntityUniqueName: cname(""), names: [], reference: nodeRef("#player"), sceneActorContextName: cname(""), slotName: cname(""), type: "EntityRef" },
       }],
       sceneEventsDebugSymbols: eventSymbols,
-      sceneNodesDebugSymbols: nodes.map((n) => ({ $type: "scnNodeSymbol", editorEventId: "9223372036854775807", editorNodeId: nodeId(n.id), nodeId: nodeId(n.id) })),
+      // No event: the game's scenes write 2^64-1. REDbridge 0.10.0 saved 2^63-1 as that; 0.11.0 keeps what is given.
+      sceneNodesDebugSymbols: nodes.map((n) => ({ $type: "scnNodeSymbol", editorEventId: "18446744073709551615", editorNodeId: nodeId(n.id), nodeId: nodeId(n.id) })),
       workspotsDebugSymbols: [],
     }),
     sceneCategoryTag: story.type === "side" ? "sideQuests" : "minorQuests",
