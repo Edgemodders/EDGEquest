@@ -6,6 +6,7 @@
 
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import type { BridgeClient } from "./bridgeClient";
 import { summarize } from "./describe";
@@ -162,6 +163,25 @@ export function worldRefs(json: Json): { prefabs: string[]; triggers: string[] }
   return { prefabs: [...prefabs], triggers: [...triggers] };
 }
 
+/**
+ * A game file's JSON. One too big to come back over JSON-RPC as a string (on game 2.5, the prologue
+ * montage's quest sector: 313 MB, past .NET's limit for one JSON string) is read through a temporary file.
+ */
+async function bigJson(bridge: BridgeClient, gamePath: string): Promise<Json> {
+  try {
+    return JSON.parse((await bridge.toJson(gamePath)).json ?? "null");
+  } catch (e) {
+    if (!/serialization|too large/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    const file = path.join(os.tmpdir(), `edgequest-${process.pid}-${Date.now()}.json`);
+    try {
+      await bridge.toJson(gamePath, file);
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+  }
+}
+
 /** A world node's id: FNV-1a 64 of its full path with every "#" left out (checked on game 2.5). */
 const nodeHash = (path: string) => fnv1a64(path.replace(/#/g, ""));
 
@@ -203,7 +223,7 @@ async function readAreas(bridge: BridgeClient, listed: Set<string>, failed: stri
   for (const [s, prefab] of sectors) {
     if (i++ % 200 === 0) progress("Reading the world's quest trigger areas", i, sectors.size);
     let rc: Json;
-    try { rc = JSON.parse((await bridge.toJson(s)).json ?? "null")?.Data?.RootChunk; } catch (e) { failed.push(`${s}: ${e instanceof Error ? e.message : String(e)}`); continue; }
+    try { rc = (await bigJson(bridge, s))?.Data?.RootChunk; } catch (e) { failed.push(`${s}: ${e instanceof Error ? e.message : String(e)}`); continue; }
     const nodes = rc?.nodes ?? [];
     const data: Json[] = rc?.nodeData?.Data ?? rc?.nodeData ?? [];
     const segs = prefab.split("/");
