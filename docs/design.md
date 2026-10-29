@@ -128,6 +128,26 @@ Reading comes before writing, because the game's quests are the documentation. E
 | **Q4 Voice, sound and world** | Voiced lines in the game: the voice-over map and `.wem` paths from EDGEwave's `voice.json`; music and sounds by event name in beats and scenes (Decisions, Music and sound), picked, heard and made through EDGEwave; places and people from EDGEbuilder. Checklist items for voice, places and people tick themselves once the voice files and placed spots exist | A quest with a voiced NPC standing where the modder placed them |
 | **Q5 Ship** | Docs, the MCP package on npm, Open VSX and Marketplace, EDGEkit and EDGEchat entries | A non-coder makes a small quest from the docs alone |
 | **Q6 The assistant builds it all** | The AI writing a quest works through its checklist with the other EDGE tools' MCP servers: voice from EDGEwave, places and people from EDGEbuilder, items and props from EDGEfab. Each item is the hand-off, and ticks when that tool is done. Agreed as a direction 2026-10-22; planned after Q5 | A quest described in a few sentences ends with an empty checklist and every line voiced |
+| **Q7 Mods' tools** (proposed 2026-10-29) | A quest calls REDnode packages' functions: a `tool:` step in a beat, `tool:` items in a scene and in a choice's option, later `when:` (see [Mods' tools in a quest](#mods-tools-in-a-quest-proposed)). The made runtime package, the Tool picker, MCP `quest_tools`, checklist and `quest_check` items. Proposed after Q3, which brings REDnode into EDGEquest | A choice in a scene starts a REDnode package's function in the game, and a beat waits for one to finish before it goes on |
+
+## Mods' tools in a quest (proposed)
+
+Asked for by the owner on 2026-10-29: a quest runs code from REDnode packages, such as a mod that plays a custom voice-over or starts a holocall when the quest reaches a point. **Proposed, not agreed.** Checked the same day against REDnode 0.44.0's docs and the game's scenes.
+
+**What REDnode already has**, all passed in game: a package's service functions, callable by any other package through `service.connect(id)` (SV1); the ones marked `@tool` offered to assistants and switched in the Tools Manager (SV3); roles, `use("voice")`, for whichever package provides one (#20, REDnode 0.44.0); and `quests.watch`, which hears a fact change at once (Q-A, REDnode 0.32.0, EDGEquest's #15). A quest file cannot call JavaScript, but it can set a fact, and a REDnode package can hear it. **So the first version needs nothing new from REDnode.**
+
+| Part | Proposal |
+|---|---|
+| Where calls go | **A step like any other**, so there is no separate lifecycle: first in a beat's steps runs as the beat starts, last before its ending or `next` runs as it ends, and after a `wait` or `arrive` when that is met. In a scene, between lines (as `sound:` is) and in a choice's option, several in a row, before its `go:` |
+| The story file | `- tool: holocall.start` with `with: { caller: judy }` for the arguments by name, and `wait: true` to wait until it returns (the default goes on at once). The name is `<package>.<function>`, or `<role>.<function>` for a role such as `voice.speak` |
+| Later: on a condition | `when:` on a beat: a condition (a fact, V in an area) and the calls to make when it is met while the beat runs, made as a branch of the phase beside the beat's steps |
+| What make writes | The phase: a fact node that sets the call's fact (`<prefix>_call_<n>`), and with `wait`, a fact condition on its done fact. A scene: the same fact node inside a `scnQuestNode`, as game scenes set facts mid-scene (64 of 186 sampled). And a small **REDnode package for the quest**, made into the project under `source/resources/red4ext/plugins/REDnode/apps/<quest>/`: its manifest `requires` the packages it calls, its Node mod watches the call facts, calls each function through `service.connect` or `use`, and sets the done fact (or a failed value, logged in the Mod log) |
+| Why a package per quest | The quest mod carries everything it needs, with nothing else to install but REDnode and the packages it calls; the Mod Manager names a missing one. One shared EDGEquest runtime is the other choice: less copied code, one more thing to install |
+| Picking a tool | Storyboard **+ Step > Tool**, and **+ Tool** in a scene and an option: installed packages' functions from their `service.json` (the game's apps folder and REDnode's development folders), with their descriptions and a field per parameter from the schema. MCP `quest_tools` lists the same for an assistant |
+| The checklist and `quest_check` | An item "Needs REDnode and `<package>` (version)" with the quest's dependencies. A warning when a called package or function is not installed, when arguments do not fit its schema, and on `wait: true` (without REDnode, the quest would wait forever) |
+| The player's say | A quest's calls are calls between packages, which REDnode does not switch in the Tools Manager (that is for assistants). The quest's package and the packages it calls show in the Mod Manager, and every call is in the Mod log |
+
+**Still to settle:** whether the Tools Manager's switches should also stop a quest's calls (REDnode's call); how the picker reads a package that ships no `service.json` (a request to REDnode for its descriptors without the game running); whether `wait:` gets a time limit; whether REDcode's pack copies a REDnode package from `source/resources/` (*unverified*); a tool's result steering a branch (facts hold whole numbers only).
 
 ## Open questions
 
@@ -147,6 +167,7 @@ Each is answered by a test in the phase named.
 | Whether a quest's music cue plays well from another quest, or expects a music state set before it | Q4 |
 | Whether a REDmod custom sound under a new event name plays when a quest phase or scene posts it (EDGEwave #7) | Q4 |
 | Whether a game quest's objectives map cleanly enough to beats for a storyboard of it (several objectives are often open at once) | After Q2 |
+| Whether a fact a phase or scene sets reaches a REDnode package's `quests.watch` quickly enough for a tool to feel part of the scene | Q7 |
 
 ## Sources
 

@@ -14,7 +14,7 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 
 ## Roadmap status
 
-As of 2026-10-24. Nothing is released yet; [Dev setup](dev-setup.html) section 5 builds it from source.
+As of 2026-10-29. Nothing is released yet; [Dev setup](dev-setup.html) section 5 builds it from source.
 
 | Phase | Status |
 |---|---|
@@ -25,5 +25,6 @@ As of 2026-10-24. Nothing is released yet; [Dev setup](dev-setup.html) section 5
 | Q4 Voice, sound and world | Started: music and sound in beats and scenes built 2026-10-24, with EDGEwave's sound events; in-game test 6 to come. Voice in the game waits for EDGEwave's `.wem` route; places and people for EDGEbuilder |
 | Q5 Ship | Not started |
 | Q6 The assistant builds it all | Agreed as a direction 2026-10-22; after Q5 |
+| Q7 Mods' tools | Proposed 2026-10-29: a quest calls REDnode packages' functions from a beat, a scene or a choice ([design](design.html#mods-tools-in-a-quest-proposed)); proposed after Q3 |
 
 Source code and issues: [github.com/Edgemodders/EDGEquest](https://github.com/Edgemodders/EDGEquest)
