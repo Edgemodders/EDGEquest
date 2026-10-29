@@ -110,6 +110,19 @@ A scan of the game's 4,627 `.scene` files (4 failed to read): 102 have V as the 
 | Other | Empty workspots, props, effects; an `interruptionScenarios` default; `resouresReferences` lists the lip sync anim set; `sceneCategoryTag` (`minorQuests`, `other`, …) |
 | A phone call | The caller is a `scnActorDef` (`spawnSet`); their lines have `isHolocallSpeaker` 1 and `Vo_Expression_Phone`. How the phase opens the call and shows the caller's portrait is the next study |
 
+### Choice options
+
+How the game marks an option, from 2,722 options in 579 sampled scenes and the game's scripts (`questCondition.swift`, `rpgManager.swift`), 2026-10-29, game 2.5:
+
+| Part | Content |
+|---|---|
+| Colour | `scnChoiceNodeOption.type` is a `gameinteractionsChoiceTypeWrapper` whose `properties` are bits of `gameinteractionsChoiceType`: `QuestImportant` 1 (yellow), `Blueline` 256, `Pay` 512 (`AlreadyRead` 2 is set by the engine as an option is chosen). 1,433 options had 1, 1,147 had 0, 72 had 257, 68 had 256 |
+| Blue tag | `bluelineCondition`: a `questStatsCondition` with `questLifePath_ConditionType` (`LifePath_ScriptConditionType`, `lifePathId` `LifePaths.Corporate`, `.Nomad`, `.StreetKid`) or `questBuild_ConditionType` (`Build_ScriptConditionType`: `buildId` `PlayerBuilds.Solo` (Body), `.Netrunner` (Intelligence), `.Techie` (Technical Ability), `.Reflexes`, `.Cool`; `difficulty` an `EGameplayChallengeLevel`; `comparisonType` `CO_GreaterEq`, or `CO_Lesser` for the option shown to V below it; `questAssignment` a content assignment whose power level picks the number from the `attribute_checks` curves); or a `questPaymentCondition` with `PaymentFixedAmount_ScriptConditionType` (`payAmount`) or `PaymentBalanced_ScriptConditionType` (`difficulty`, `questAssignment`), `payWhenSucceded` 1 takes the money. Both `entityRef`s are a `questUniversalRef` with `refLocalPlayer` 1. The dialogue UI shows a failed blueline with its fail background |
+| Showing it | `questCondition` hides an option when false: 489 options, mostly fact tests. Some lifepath options repeat the lifepath test there (`sq012_07a_conclusions.scene`) |
+| Other | `iconTagIds` (`ChoiceCaptionParts.SitIcon`, `JackInIcon`, …) for action options; `isSingleChoice` (157); `timedParams` (timed choices, rare); `gameplayAction` (`Interactions.Inspect`) |
+
+EDGEquest writes yellow from the story (worked out or `main:`), a lifepath as both blueline and quest condition, a check with `DeviceContentAssignment.Autoscaling` (power level `Character.ScaleToPlayerLevel`), a payment with `Pay` set too. *Unverified until in-game test 8:* that another lifepath's option is hidden, that a failed check or payment shows locked, and that paying takes the money.
+
 ## Music and sound in quests (Q4 study, 2026-10-24)
 
 A sample of 300 of the 3,837 quest phases and 150 of the 4,627 scenes, read through REDbridge on game 2.31:
