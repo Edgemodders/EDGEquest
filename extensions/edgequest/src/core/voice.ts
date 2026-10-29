@@ -52,7 +52,7 @@ export function sceneLines(story: { id: string }, spec: SceneSpec): StoryLine[] 
   const out: StoryLine[] = [];
   const walk = (items: SceneItem[], place: string, at: (string | number)[]) => items.forEach((it, i) => {
     if (it.kind === "line") out.push({ id: lineKey(story, spec.name, `${place}/${i}`, it.voice?.id), scene: spec.name, speaker: it.speaker, text: it.text, voice: it.voice, path: [...at, i] });
-    if (it.kind === "choice") it.options.forEach((o, j) => walk(o.then, `${place}/${i}/${j}`, [...at, i, "choice", o.text]));
+    if (it.kind === "choice") it.options.forEach((o, j) => walk(o.then, `${place}/${i}/${j}`, [...at, i, "choice", o.text, ...(o.map ? ["then"] : [])]));
   });
   walk(spec.items, "main", sceneItemsPath(spec));
   return out;
@@ -137,7 +137,7 @@ export function assignVoiceIds(text: string, everyLine = false): { text: string;
     for (const it of list.items) {
       if (!isMap(it)) continue;
       const choice = it.get("choice", true);
-      if (isMap(choice)) { for (const p of choice.items) walk(p.value, visit); continue; }
+      if (isMap(choice)) { for (const p of choice.items) walk(isMap(p.value) ? p.value.get("then", true) : p.value, visit); continue; }
       if (it.has("voice") || (everyLine && !it.has("set") && !it.has("go"))) visit(it);
     }
   };

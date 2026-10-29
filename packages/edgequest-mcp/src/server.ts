@@ -17,7 +17,7 @@ import { z } from "zod";
 import {
   BridgeClient, buildIndex, checklistMarkdown, checkMarkdown, checkQuestMod, modFromArchive, modFromFolder, defaultCacheDir, findQuests, isGameFolder, isIndexCurrent, loadIndex, nonEmpty, questMarkdown, questOf, readQuestFile, readScene, resolveBridge, resolveGame,
   assignVoiceIds, edgewaveLines, hasPrompt, readStory, readVoiceRecord, sceneMarkdown, storyChecklist, storyLines, storyboard, storyboardMarkdown, takeStatus, usedBy,
-  voiceArchiveDir, voiceFile, vscodeUserSettings, addBeat, beatNameFor, convertToBeats, deleteBeat, isProject, makeQuest, optionPath, renameObjective, setChoiceGo, setLineVoice, setPath, setThen,
+  voiceArchiveDir, voiceFile, vscodeUserSettings, addBeat, beatNameFor, convertToBeats, deleteBeat, isProject, makeQuest, optionPath, renameObjective, setChoiceGo, setOption, setLineVoice, setPath, setThen,
   setTodoDone, storyTemplate, insertItem, moveItem, removeItem, addScene, type QuestIndex, type SettingsReader,
 } from "../../../extensions/edgequest/src/core";
 
@@ -335,8 +335,8 @@ async function makeStory(file: string): Promise<string> {
 const StoryFormat =
   "A story file (<project>\\<id>.quest.yaml) holds: quest (title), id, author, type (side or minor), description, places (name: { marker: <a game map marker's journal path>, area: \"#<trigger area>\" }), " +
   "beats (name: { objective, marker?, steps: [ { arrive: <place> } | { wait: <seconds> } | { scene: <name> } | { set: <fact> } | { music: <music cue event> } | { sound: <sound event> } | done | failed ], next? }), " +
-  "scenes (name: [ { V: <line>, voice?: { direction, say } } | { choice: { <option text>: [ ...items, { go: <beat> } ] } } | { set: <fact> } | { sound: <sound event> } ]) and todo (the checklist). " +
-  "Beats run in order (next: <beat> goes elsewhere, next: none stops there); a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]). " +
+  "scenes (name: [ { V: <line>, voice?: { direction, say } } | { choice: { <option text>: [ ...items, { go: <beat> } ] | { main?: yes|no, lifepath?: corpo|nomad|streetkid, check?: { body|intelligence|reflexes|tech|cool: easy|medium|hard|impossible }, pay?: <eddies>|<difficulty>, then: [ ...items ] } } } | { set: <fact> } | { sound: <sound event> } ]) and todo (the checklist). " +
+  "Beats run in order (next: <beat> goes elsewhere, next: none stops there); a choice's go: sends the quest to another beat; done or failed, last in a beat, ends the quest. An option that goes to a beat or sets a fact shows yellow, as the game marks options that move the story on; main: says otherwise. lifepath (only that lifepath sees it), check (locked below the level) and pay (taken on choosing) put the game's blue tag in front of it, one per option, and every choice keeps one option open to all. A line's voice says how it is spoken: direction in plain words, say with ElevenLabs v3 tags ([softly], [sighs]). " +
   "music starts or stops one of the game's music cues (mus_<quest>_..._START, then its _STOP); sound plays a game sound event on V, or a custom sound made with EDGEwave (edgewave_<name>). EDGEwave's MCP tools sound_events and sound_custom find and make them; a name that is neither the game's nor the project's gets a checklist item.";
 
 server.registerTool(
@@ -378,6 +378,14 @@ const Edit = z.discriminatedUnion("op", [
   z.object({ op: z.literal("renameObjective"), beat: z.string(), objective: z.string() }),
   z.object({ op: z.literal("deleteBeat"), beat: z.string() }),
   z.object({ op: z.literal("setGo"), scene: z.string(), option: z.string().describe("The option's text."), beat: z.string().optional().describe("The beat it goes on to; absent: the scene goes on after the choice.") }),
+  z.object({
+    op: z.literal("setOption"), scene: z.string(), option: z.string().describe("The option's text."),
+    main: z.boolean().nullable().optional().describe("true: yellow (moves the story on); false: white; null: worked out (yellow when it goes to a beat or sets a fact)."),
+    lifepath: z.enum(["corpo", "nomad", "streetkid"]).optional().describe("Only V with this lifepath sees it."),
+    check: z.object({ attribute: z.enum(["body", "intelligence", "reflexes", "tech", "cool"]), difficulty: z.enum(["easy", "medium", "hard", "impossible"]) }).optional().describe("V needs the attribute at this difficulty (scaled to V's level), or it shows locked."),
+    pay: z.union([z.number().int().positive(), z.enum(["easy", "medium", "hard", "impossible"])]).optional().describe("Eddies, or a difficulty's price for V's level, taken on choosing it."),
+    open: z.boolean().optional().describe("true: no lifepath, check or pay; anyone can pick it."),
+  }),
   z.object({ op: z.literal("setVoice"), line: z.array(z.union([z.string(), z.number()])).optional().describe("The line's path, from quest_voice."), lineId: z.string().optional().describe("Or the line's id, from quest_voice."), direction: z.string().optional(), say: z.string().optional() }),
   z.object({ op: z.literal("setTodo"), index: z.number().int().describe("The item's place in todo:, from 0."), done: z.boolean() }),
   z.object({ op: z.literal("convertToBeats") }),
@@ -392,7 +400,7 @@ server.registerTool(
   "quest_edit",
   {
     description:
-      "Changes a story file in story words, as the Storyboard does: add, rename or delete a beat, say what follows a beat (setThen), send a choice to a beat (setGo), say how a line is spoken (setVoice), tick a checklist item, " +
+      "Changes a story file in story words, as the Storyboard does: add, rename or delete a beat, say what follows a beat (setThen), send a choice to a beat (setGo), make an option yellow or white or give it a lifepath, attribute check or payment (setOption), say how a line is spoken (setVoice), tick a checklist item, " +
       "add, move or remove lines, choices and steps in their lists, add a scene, convert an old steps: list to beats, or set any value by its path. The edits apply in order and the file is written once, comments kept; an edit that cannot apply stops them all. " +
       "Returns the beats, the problems and what is left on the checklist. " + StoryFormat,
     inputSchema: {
@@ -417,6 +425,13 @@ server.registerTool(
               const at = s && optionPath(s, e.scene, e.option);
               if (!at) throw new Error(`No option "${e.option}" in the scene ${e.scene} (or the story has problems to fix first).`);
               src = setChoiceGo(src, at, e.beat);
+              break;
+            }
+            case "setOption": {
+              const s = readStory(src).story;
+              const at = s && optionPath(s, e.scene, e.option);
+              if (!at) throw new Error(`No option "${e.option}" in the scene ${e.scene} (or the story has problems to fix first).`);
+              src = setOption(src, at, { main: e.main, lifepath: e.lifepath, check: e.check, pay: e.pay, condition: e.open ? null : undefined });
               break;
             }
             case "setVoice": {

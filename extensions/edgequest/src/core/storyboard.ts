@@ -3,7 +3,7 @@
 // to, labelled with that choice. The VS Code Storyboard draws this; quest_describe gives it in words.
 
 import * as path from "path";
-import { alwaysGoes, readStory, storyChecklist, type Beat, type SceneItem, type Story, type StoryStep } from "./story";
+import { alwaysGoes, mainOption, optionItemsPath, optionTag, readStory, storyChecklist, type Beat, type SceneItem, type Story, type StoryStep } from "./story";
 import type { ChecklistItem } from "./checklist";
 import { readVoiceRecord, sceneItemsPath, sceneLines, takeStatus, type StoryLine, type TakeStatus } from "./voice";
 
@@ -113,7 +113,14 @@ interface Placed { list: Path; index: number; first: boolean; last: boolean }
 export type BoardRow =
   | ({ kind: "line"; depth: number; speaker: string; text: string; direction?: string; say?: string; status: TakeStatus; path: Path; id: string } & Placed)
   | ({ kind: "choice"; depth: number; choice: Path } & Placed)
-  | { kind: "option"; depth: number; text: string; path: Path; choice: Path; go?: string; first: boolean; last: boolean }
+  | {
+      kind: "option"; depth: number; text: string; path: Path; choice: Path; go?: string; first: boolean; last: boolean;
+      /** Yellow; `mainSet` is main: as written, absent when worked out. */
+      main: boolean; mainSet?: boolean;
+      /** The option's lifepath, check or payment as the editor's picker names it ("lifepath:corpo", "check:body",
+       *  "pay"), with the check's difficulty or the payment, and the game's tag for it. */
+      condition?: string; difficulty?: string; pay?: string; tag?: string;
+    }
   | ({ kind: "set"; depth: number; words: string } & Placed)
   | ({ kind: "sound"; depth: number; event: string; path: Path } & Placed)
   /** The end of a list: where a new line or choice goes. */
@@ -201,8 +208,12 @@ function sceneRows(story: Story, name: string, record: ReturnType<typeof readVoi
         rows.push({ kind: "choice", depth, choice: [...p, "choice"], ...placed });
         it.options.forEach((o, j) => {
           const last = o.then[o.then.length - 1];
-          rows.push({ kind: "option", depth: depth + 1, text: o.text, path: [...p, "choice", o.text], choice: [...p, "choice"], go: last?.kind === "go" ? last.beat : undefined, first: j === 0, last: j === it.options.length - 1 });
-          walk(o.then, [...p, "choice", o.text], depth + 2);
+          const condition = o.lifepath ? `lifepath:${o.lifepath}` : o.check ? `check:${o.check.attribute}` : o.pay !== undefined ? "pay" : undefined;
+          rows.push({
+            kind: "option", depth: depth + 1, text: o.text, path: [...p, "choice", o.text], choice: [...p, "choice"], go: last?.kind === "go" ? last.beat : undefined, first: j === 0, last: j === it.options.length - 1,
+            main: mainOption(o), mainSet: o.main, condition, difficulty: o.check?.difficulty, pay: o.pay === undefined ? undefined : String(o.pay), tag: optionTag(o),
+          });
+          walk(o.then, optionItemsPath([...p, "choice", o.text], o), depth + 2);
         });
       } else if (it.kind === "sound") rows.push({ kind: "sound", depth, event: it.event, path: p, ...placed });
       else if (it.kind === "set") rows.push({ kind: "set", depth, words: `${it.add ? "add" : "set"} ${it.fact}${it.add || it.value !== 1 ? ` ${it.value}` : ""}`, ...placed });

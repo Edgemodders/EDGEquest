@@ -4,7 +4,7 @@
 // the line's locstring id, and is also kept in the scene's own text store.
 
 import type { Json } from "../graph";
-import type { SceneItem, SceneSpec, Story } from "../story";
+import { Attributes, Lifepaths, mainOption, type ChoiceOption, type SceneItem, type SceneSpec, type Story } from "../story";
 import { Instances, cname, handle, nodeRef, stableId, tweakId } from "./wk";
 import { GraphBuilder } from "./phase";
 import { SceneEntry, SceneExit, goExit } from "./layout";
@@ -47,6 +47,37 @@ interface Node {
   options?: { id: number; ordinal: number }[][];
   /** Input ordinal for a link into this node: 1 for quest nodes (0 is the cut socket), else 0. */
   inOrdinal: number;
+}
+
+/** The bits of an option's gameinteractionsChoiceType that EDGEquest sets: yellow, the blue tag, paying. */
+const QuestImportant = 1, Blueline = 256, Pay = 512;
+/** The game's content assignment that scales a check's number and a price with V's level. */
+const Autoscaling = "DeviceContentAssignment.Autoscaling";
+
+/** An option's colour and its lifepath, check or payment, as the game's scenes write them (studied
+ *  2026-10-29: a blueline condition puts the tag in front of the option and greys it when V fails it; a
+ *  lifepath option for another lifepath is also hidden by the same test as its quest condition). */
+async function optionKind(o: ChoiceOption, inst: Instances): Promise<Json> {
+  const player = async () => handle(await inst.make("questUniversalRef", { refLocalPlayer: 1 }));
+  const lifepath = async () => handle(await inst.make("questStatsCondition", {
+    type: handle(await inst.make("questLifePath_ConditionType", { entityRef: await player(), scriptCondition: handle(await inst.make("LifePath_ScriptConditionType", { lifePathId: tweakId(Lifepaths[o.lifepath!]), inverted: 0 })) })),
+  }));
+  let blueline: Json | undefined, quest: Json | undefined;
+  if (o.lifepath) [blueline, quest] = [await lifepath(), await lifepath()];
+  else if (o.check) blueline = handle(await inst.make("questStatsCondition", {
+    type: handle(await inst.make("questBuild_ConditionType", {
+      entityRef: await player(),
+      scriptCondition: handle(await inst.make("Build_ScriptConditionType", { buildId: tweakId(Attributes[o.check.attribute]), comparisonType: "CO_GreaterEq", difficulty: o.check.difficulty.toUpperCase(), questAssignment: tweakId(Autoscaling) })),
+    })),
+  }));
+  else if (typeof o.pay === "number") blueline = handle(await inst.make("questPaymentCondition", {
+    type: handle(await inst.make("questPaymentFixedAmount_ConditionType", { scriptCondition: handle(await inst.make("PaymentFixedAmount_ScriptConditionType", { inverted: 0, payAmount: o.pay, payWhenSucceded: 1 })) })),
+  }));
+  else if (o.pay) blueline = handle(await inst.make("questPaymentCondition", {
+    type: handle(await inst.make("questPaymentBalanced_ConditionType", { scriptCondition: handle(await inst.make("PaymentBalanced_ScriptConditionType", { difficulty: o.pay.toUpperCase(), inverted: 0, payWhenSucceded: 1, questAssignment: tweakId(Autoscaling) })) })),
+  }));
+  const flags = (mainOption(o) ? QuestImportant : 0) | (blueline ? Blueline : 0) | (o.pay !== undefined ? Pay : 0);
+  return { type: { $type: "gameinteractionsChoiceTypeWrapper", properties: flags }, ...(blueline ? { bluelineCondition: blueline } : {}), ...(quest ? { questCondition: quest } : {}) };
 }
 
 export async function writeScene(story: Story, spec: SceneSpec, inst: Instances): Promise<WrittenScene> {
@@ -166,7 +197,7 @@ export async function writeScene(story: Story, spec: SceneSpec, inst: Instances)
           const ruid = key(`${path}/${i}/option/${j}`);
           options.push({ $type: "scnscreenplayChoiceOption", itemId: { $type: "scnscreenplayItemId", id: itemId }, locstringId: { $type: "scnlocLocstringId", ruid }, usage: { $type: "scnscreenplayOptionUsage", playerGenderMask: { $type: "scnGenderMask", mask: 3 } } });
           texts.push({ id: ruid, text: o.text });
-          opts.push(await inst.make("scnChoiceNodeOption", { screenplayOptionId: { $type: "scnscreenplayItemId", id: itemId }, caption: cname(""), gameplayAction: tweakId(""), mappinReferencePointId: { $type: "scnReferencePointId", id: NoId } }));
+          opts.push(await inst.make("scnChoiceNodeOption", { screenplayOptionId: { $type: "scnscreenplayItemId", id: itemId }, caption: cname(""), gameplayAction: tweakId(""), mappinReferencePointId: { $type: "scnReferencePointId", id: NoId }, ...(await optionKind(o, inst)) }));
         }
         const n: Node = {
           id, inOrdinal: 0, next: [], options: it.options.map(() => []),

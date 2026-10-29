@@ -3,7 +3,7 @@
 // comments kept. The Storyboard and the MCP tools use them, so an edit means the same in both.
 
 import { isMap, isScalar, isSeq, parseDocument, Pair, Scalar, YAMLMap, YAMLSeq, type Document } from "yaml";
-import type { SceneItem, Story } from "./story";
+import { Attributes, Difficulties, Lifepaths, optionItemsPath, type Attribute, type Difficulty, type Lifepath, type SceneItem, type Story } from "./story";
 import { sceneItemsPath } from "./voice";
 
 export class StoryEditError extends Error {}
@@ -131,15 +131,75 @@ export function setChoiceGo(text: string, option: Path, beat: string | undefined
   const choice = doc.getIn(option.slice(0, -1), true);
   const key = String(option[option.length - 1]);
   if (!isMap(choice) || !choice.has(key)) throw new StoryEditError(`There is no option "${key}" there.`);
-  const found: unknown = choice.get(key, true);
-  const seq = isSeq(found) ? found : new YAMLSeq();
-  if (!isSeq(found)) choice.set(key, seq);
+  const seq = optionItems(choice, key);
   seq.items = seq.items.filter((it) => !(isMap(it) && it.has("go")));
   if (beat) {
     const go = new YAMLMap();
     go.set("go", beat);
     seq.items.push(go);
   }
+  return out(doc);
+}
+
+/** An option's list of what follows it, in the file: the option's value, or its then: when it is a map. */
+function optionItems(choice: YAMLMap, key: string): YAMLSeq {
+  const found: unknown = choice.get(key, true);
+  if (isSeq(found)) return found;
+  if (isMap(found)) {
+    const then: unknown = found.get("then", true);
+    if (isSeq(then)) return then;
+    const seq = new YAMLSeq();
+    found.set("then", seq);
+    return seq;
+  }
+  const seq = new YAMLSeq();
+  choice.set(key, seq);
+  return seq;
+}
+
+export interface OptionChange {
+  /** Yellow (true) or white (false); null goes back to working it out from what follows. */
+  main?: boolean | null;
+  /** One of lifepath, check and pay, which replaces the others. */
+  lifepath?: Lifepath;
+  check?: { attribute: Attribute; difficulty: Difficulty };
+  pay?: number | Difficulty;
+  /** null: no lifepath, check or pay; the option is open to every V. */
+  condition?: null;
+}
+
+/** An option's colour and its lifepath, check or payment. An option with any of them is written as a map with
+ *  its items under then:; with none left it goes back to its plain list. */
+export function setOption(text: string, option: Path, change: OptionChange): string {
+  const doc = parse(text);
+  const choice = doc.getIn(option.slice(0, -1), true);
+  const key = String(option[option.length - 1]);
+  if (!isMap(choice) || !choice.has(key)) throw new StoryEditError(`There is no option "${key}" there.`);
+  if (change.lifepath !== undefined && !(change.lifepath in Lifepaths)) throw new StoryEditError(`lifepath is ${Object.keys(Lifepaths).join(", ")}.`);
+  if (change.check && (!(change.check.attribute in Attributes) || !Difficulties.includes(change.check.difficulty))) throw new StoryEditError(`check is an attribute (${Object.keys(Attributes).join(", ")}) and a difficulty (${Difficulties.join(", ")}).`);
+  if (change.pay !== undefined && !(typeof change.pay === "number" ? Number.isInteger(change.pay) && change.pay > 0 : Difficulties.includes(change.pay))) throw new StoryEditError(`pay is eddies (more than 0) or a difficulty (${Difficulties.join(", ")}).`);
+  const found: unknown = choice.get(key, true);
+  const map = isMap(found) ? found : new YAMLMap();
+  if (!isMap(found)) {
+    map.set("then", isSeq(found) ? found : new YAMLSeq());
+    choice.set(key, map);
+  }
+  // Its kind goes before then:, so the option reads as what it is, then what follows.
+  const put = (k: string, v: unknown) => {
+    const node = doc.createNode(v, { flow: true }); // check: { body: hard }
+    const pair = map.items.find((p) => keyOf(p) === k);
+    if (pair) { pair.value = node; return; }
+    const at = map.items.findIndex((p) => keyOf(p) === "then");
+    map.items.splice(at < 0 ? map.items.length : at, 0, new Pair(new Scalar(k), node));
+  };
+  if (change.main === null) map.delete("main");
+  else if (change.main !== undefined) put("main", change.main ? "yes" : "no");
+  const condition = change.lifepath !== undefined ? ["lifepath", change.lifepath] : change.check ? ["check", { [change.check.attribute]: change.check.difficulty }] : change.pay !== undefined ? ["pay", change.pay] : change.condition === null ? [] : undefined;
+  if (condition) {
+    for (const k of ["lifepath", "check", "pay"]) if (k !== condition[0]) map.delete(k);
+    if (condition.length) put(condition[0] as string, condition[1]);
+  }
+  if (map.items.every((p) => keyOf(p) === "then")) choice.set(key, map.get("then", true) ?? new YAMLSeq());
   return out(doc);
 }
 
@@ -180,7 +240,7 @@ export function optionPath(story: Story, scene: string, option: string): Path | 
       if (it.kind !== "choice") continue;
       for (const o of it.options) {
         if (o.text === option) return [...at, i, "choice", o.text];
-        const deeper = find(o.then, [...at, i, "choice", o.text]);
+        const deeper = find(o.then, optionItemsPath([...at, i, "choice", o.text], o));
         if (deeper) return deeper;
       }
     }

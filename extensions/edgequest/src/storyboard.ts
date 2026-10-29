@@ -7,7 +7,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import {
-  setPath, addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption,
+  setPath, addBeat, addOption, addScene, assignVoiceIds, boardModel, convertToBeats, deleteBeat, edgewaveLines, insertItem, moveItem, moveOption, readStory, removeItem, removeOption, setOption, type OptionChange,
   renameObjective, renameOption, sceneLines, setChoiceGo, setLine, setLineVoice, setThen, setTodoDone,
   voiceArchiveDir, StoryEditError,
 } from "./core";
@@ -36,6 +36,7 @@ type Message =
   | { type: "renameOption"; choice: Path; option: string; to: string }
   | { type: "moveOption"; choice: Path; option: string; by: number }
   | { type: "removeOption"; choice: Path; option: string }
+  | { type: "optionKind"; option: Path; change: OptionChange }
   | { type: "addStep"; beat: string }
   | { type: "addSound"; list: Path; index: number }
   | { type: "editSound"; at: Path; kind: "music" | "sound"; event: string }
@@ -172,6 +173,7 @@ export class StoryboardEditor implements vscode.CustomTextEditorProvider {
         if (ok !== "Delete") return;
         return this.edit(document, (t) => removeOption(t, m.choice, m.option));
       }
+      case "optionKind": return this.edit(document, (t) => setOption(t, m.option, m.change));
       case "addStep": return this.addStep(document, m.beat);
       case "addSound": {
         const event = await pickSound("sound", path.dirname(document.uri.fsPath));

@@ -6,7 +6,7 @@
 // Text: the scene's own locStore holds the text per locale (checked on sq030_01_dam_meetup: 60 of its
 // 64 en_us lines equal the en-us subtitles). Subtitles passed in by the caller win over it.
 
-import { describeCondition, describeNode, type StepInfo } from "./describe";
+import { describeCondition, describeNode, gameOptionTag, type StepInfo } from "./describe";
 import { deref, value, type Json, type QuestNode } from "./graph";
 
 export interface SceneActor { id: number; name: string; player: boolean }
@@ -27,6 +27,10 @@ export interface SceneOption {
   text: string;
   /** "only if ...", when the option has a quest condition. */
   condition?: string;
+  /** Yellow: the game marks it as moving the story on. */
+  main: boolean;
+  /** The blue tag in front of it: "Corpo", "Body, hard", "Pay 500". */
+  tag?: string;
   to: number[];
 }
 
@@ -155,7 +159,8 @@ export function readScene(json: Json, subtitles?: Map<string, string>): SceneFil
           const oid = Number(o.screenplayOptionId?.id);
           const t = optionText.get(oid) ?? { stringId: "", text: "" };
           const cond = o.questCondition ? describeCondition(o.questCondition, h) : undefined;
-          return { id: oid, stringId: t.stringId, text: t.text, condition: cond && cond !== "?" ? `only if ${cond}` : undefined, to: sockets.find((s) => s.name === 0 && s.ordinal === i)?.to ?? [] };
+          const tag = o.bluelineCondition ? gameOptionTag(o.bluelineCondition, h) : undefined;
+          return { id: oid, stringId: t.stringId, text: t.text, condition: cond && cond !== "?" && cond !== `[${tag}]` ? `only if ${cond}` : undefined, main: !!(Number(value(o.type?.properties) ?? 0) & 1), tag, to: sockets.find((s) => s.name === 0 && s.ordinal === i)?.to ?? [] };
         });
         allOptions.push(...step.options!);
         step.text = `Choice of ${step.options!.length}`;

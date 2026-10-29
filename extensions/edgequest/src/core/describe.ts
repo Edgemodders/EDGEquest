@@ -104,6 +104,28 @@ function journal(x: Json, h: Handles, uses: JournalUse[], state?: string): strin
 // ---- conditions -----------------------------------------------------------------------------
 
 /** A condition in plain words, collecting the facts, journal entries and refs it reads. */
+const Lifepath: Record<string, string> = { Corporate: "Corpo", Nomad: "Nomad", StreetKid: "Street Kid" };
+const Build: Record<string, string> = { Solo: "Body", Netrunner: "Intelligence", Techie: "Technical Ability", Reflexes: "Reflexes", Cool: "Cool" };
+const Below: Record<string, boolean> = { CO_Lesser: true, CO_LesserEq: true };
+
+/** A choice option's blueline condition as the game tags the option: "Corpo", "Body, hard", "Pay 500",
+ *  "Pay, medium"; "not" in front when it is turned round. Undefined for other conditions. */
+export function gameOptionTag(c: Json, h: Handles): string | undefined {
+  const d = deref(c, h);
+  const t = deref(d?.type, h) ?? {};
+  const sc = deref(t.scriptCondition, h) ?? {};
+  const last = (x: Json) => str(x).split(".").pop() ?? "";
+  const not = (on: boolean, words: string) => (on ? `not ${words}` : words);
+  switch (t.$type) {
+    case "questLifePath_ConditionType": return not(flag(sc.inverted, false), Lifepath[last(sc.lifePathId)] ?? last(sc.lifePathId));
+    case "questCharacterLifePath_ConditionType": return Lifepath[last(t.lifePathID)] ?? last(t.lifePathID);
+    case "questBuild_ConditionType": return not(!!Below[str(sc.comparisonType)], `${Build[last(sc.buildId)] ?? last(sc.buildId)}, ${str(sc.difficulty).toLowerCase() || "none"}`);
+    case "questPaymentFixedAmount_ConditionType": return not(flag(sc.inverted, false), `Pay ${num(sc.payAmount, 0)}`);
+    case "questPaymentBalanced_ConditionType": return not(flag(sc.inverted, false), `Pay, ${str(sc.difficulty).toLowerCase() || "none"}`);
+  }
+  return undefined;
+}
+
 export function describeCondition(c: Json, h: Handles, facts: FactUse[] = [], jr: JournalUse[] = [], refs: string[] = []): string {
   const d = deref(c, h);
   if (!d?.$type) return "?";
@@ -176,6 +198,12 @@ export function describeCondition(c: Json, h: Handles, facts: FactUse[] = [], jr
     }
     case "questMappinGPSComparison_ConditionType":
       return `GPS distance to ${journal(deref(t.distanceDefinition1, h)?.mappinPath, h, jr)} ${cmp(t.comparisonType)} ${num(deref(t.distanceDefinition2, h)?.distanceValue, 0)} m`;
+    case "questLifePath_ConditionType":
+    case "questCharacterLifePath_ConditionType":
+    case "questBuild_ConditionType":
+    case "questPaymentFixedAmount_ConditionType":
+    case "questPaymentBalanced_ConditionType":
+      return `[${gameOptionTag(d, h)}]`; // as the game tags an option
     case "questCharacterMount_ConditionType":
       return `${flag(t.childIsPlayer, false) ? "V" : who(t.childRef, refs, h)} ${str(t.condition) === "OnUnmount" ? "gets out of" : "gets into"} ${flag(t.usePlayersVehicle, false) ? "V's vehicle" : who(t.parentRef, refs, h)}`;
     case "questCameraFocus_ConditionType":

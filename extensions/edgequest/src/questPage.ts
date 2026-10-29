@@ -113,7 +113,7 @@ export class QuestPages {
       const next = s.kind === "choice" ? "" : s.next.map((n) => n.to.map((t) => `<a class="goto" data-node="${t}">→ ${t}</a>`).join(" ")).join(" ");
       rows.push(`<div class="step k-${s.kind}" id="n${s.id}"><span class="icon">${KindIcon[s.kind] ?? "·"}</span><span class="id">${s.id}</span><span class="text">${esc(s.text)}</span>${next ? `<span class="next">${next}</span>` : ""}</div>`);
       for (const l of s.lines ?? []) rows.push(`<div class="line"><b>${esc(l.speaker)}</b>${l.addressee && l.addressee !== l.speaker ? ` <span class="muted">to ${esc(l.addressee)}</span>` : ""}: ${l.text ? esc(l.text) : `<span class="muted">(no text, ${esc(l.stringId)})</span>`}</div>`);
-      for (const o of s.options ?? []) rows.push(`<div class="line option">◆ ${o.text ? esc(o.text) : `<span class="muted">(no text, ${esc(o.stringId)})</span>`}${o.condition ? ` <span class="muted">[${esc(o.condition)}]</span>` : ""} ${o.to.map((t) => `<a class="goto" data-node="${t}">→ ${t}</a>`).join(" ")}</div>`);
+      for (const o of s.options ?? []) rows.push(`<div class="line option${o.main ? " main" : ""}"${o.main ? ' title="Yellow: moves the story on"' : ""}>◆ ${o.tag ? `<span class="tag">[${esc(o.tag)}]</span> ` : ""}${o.text ? esc(o.text) : `<span class="muted">(no text, ${esc(o.stringId)})</span>`}${o.condition ? ` <span class="muted">[${esc(o.condition)}]</span>` : ""} ${o.to.map((t) => `<a class="goto" data-node="${t}">→ ${t}</a>`).join(" ")}</div>`);
     }
     const extra = `<div class="people">People: ${scene.actors.map((a) => esc(a.name) + (a.player ? " <span class=\"muted\">(player)</span>" : "")).join(", ") || "none"} · ${scene.lines.length} lines · ${scene.options.length} options${scene.missingText ? ` · ${scene.missingText} without text` : ""}<br>Entry points: ${scene.entries.map((e) => `<a class="goto" data-node="${e.node}">${esc(e.name)}</a>`).join(", ") || "none"} · Exit points: ${scene.exits.map((e) => `<a class="goto" data-node="${e.node}">${esc(e.name)}</a>`).join(", ") || "none"}</div>`;
     return `${this.header(gamePath, "Scene", extra)}<main class="one"><section class="steps">${rows.join("")}</section></main>`;
@@ -139,7 +139,7 @@ export class QuestPages {
   .text { flex: 1 1 24em; } .next { color: var(--vscode-descriptionForeground); font-size: .92em; } .words { color: var(--vscode-textPreformat-foreground); }
   .k-wait { border-left-color: #c9a227; } .k-if { border-left-color: #c94f6d; } .k-fact { border-left-color: #6d9fc9; } .k-journal { border-left-color: #8ac926; }
   .k-scene, .k-section, .k-choice { border-left-color: #b56dc9; } .k-phase { border-left-color: #f0f0f0; } .k-start, .k-end { border-left-color: #fcee0a; }
-  .line { margin: .1em 0 .1em 5.5em; padding: .15em .5em; border-left: 1px solid var(--vscode-panel-border); } .option { color: var(--vscode-textLink-foreground); }
+  .line { margin: .1em 0 .1em 5.5em; padding: .15em .5em; border-left: 1px solid var(--vscode-panel-border); } .option { color: var(--vscode-textLink-foreground); } .option.main { color: var(--vscode-charts-yellow, #fcee0a); } .option .tag { color: var(--vscode-charts-blue, #4fc1ff); }
   a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; } a:hover { text-decoration: underline; }
   code { font-family: var(--vscode-editor-font-family); font-size: .92em; } aside ul { padding-left: 1.1em; } aside li { margin: .2em 0; word-break: break-word; } .refs code { display: inline-block; margin: 0 .4em .2em 0; }
   .error { color: var(--vscode-errorForeground); }

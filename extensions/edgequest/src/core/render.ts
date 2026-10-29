@@ -79,7 +79,7 @@ export function sceneMarkdown(title: string, scene: SceneFile, limit = 600): str
     const next = s.kind === "choice" ? "" : s.next.map((n) => `→ ${n.to.join(", ")}`).join(" ");
     body.push(`- **${s.id}** ${s.text}${next ? `  ${next}` : ""}`);
     for (const l of s.lines ?? []) body.push(`  - ${l.speaker}${l.addressee && l.addressee !== l.speaker ? ` (to ${l.addressee})` : ""}: ${l.text || `(no text, id ${l.stringId})`}`);
-    for (const o of s.options ?? []) body.push(`  - choice: ${o.text || `(no text, id ${o.stringId})`}${o.condition ? ` [${o.condition}]` : ""} → ${o.to.join(", ") || "nowhere"}`);
+    for (const o of s.options ?? []) body.push(`  - choice${o.main ? " (yellow)" : ""}: ${o.tag ? `[${o.tag}] ` : ""}${o.text || `(no text, id ${o.stringId})`}${o.condition ? ` [${o.condition}]` : ""} → ${o.to.join(", ") || "nowhere"}`);
   }
   out.push(...body.slice(0, limit));
   if (body.length > limit) out.push(`- … ${body.length - limit} more lines`);

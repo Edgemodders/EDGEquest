@@ -30,7 +30,13 @@
 //       - choice:
 //           Keep it: [ { V: Mine now. }, { go: sell_it } ]
 //           Give it back: [ { V: Not my business. }, { go: give_it_back } ]
+//           Read the shard:            # an option with a kind: its items go under then:
+//             check: { intelligence: medium }
+//             then: [ { V: Encrypted. Corpo work. } ]
 //   todo:
+//
+// An option that goes to a beat or sets a fact shows yellow, as the game marks options that move the story
+// on; main: yes or no says otherwise. lifepath:, check: or pay: put the game's blue tag in front of it.
 //     - Decide what the reward is
 //
 // A file with a plain steps: list (before beats) still reads: a new beat starts at each objective.
@@ -83,9 +89,34 @@ export interface Beat {
   next?: string;
 }
 
+/** The lifepaths an option can be for, and the game's records for them. */
+export const Lifepaths = { corpo: "LifePaths.Corporate", nomad: "LifePaths.Nomad", streetkid: "LifePaths.StreetKid" } as const;
+export type Lifepath = keyof typeof Lifepaths;
+/** The attributes an option can check, and the game's build records for them (Solo is Body). */
+export const Attributes = { body: "PlayerBuilds.Solo", intelligence: "PlayerBuilds.Netrunner", reflexes: "PlayerBuilds.Reflexes", tech: "PlayerBuilds.Techie", cool: "PlayerBuilds.Cool" } as const;
+export type Attribute = keyof typeof Attributes;
+/** How hard a check or a payment is. The game turns it into a number that grows with V's level. */
+export const Difficulties = ["easy", "medium", "hard", "impossible"] as const;
+export type Difficulty = (typeof Difficulties)[number];
+
+export interface ChoiceOption {
+  text: string;
+  then: SceneItem[];
+  /** main: yes or no as written: yellow, or white. Absent: mainOption works it out. */
+  main?: boolean;
+  /** Only V with this lifepath sees the option. */
+  lifepath?: Lifepath;
+  /** V needs the attribute at the difficulty's level, or the option shows locked. */
+  check?: { attribute: Attribute; difficulty: Difficulty };
+  /** V pays this on choosing it: eddies, or a difficulty's price for V's level. Without the money it shows locked. */
+  pay?: number | Difficulty;
+  /** Written as a map, with its items under then: (the file's list is at the option's path + "then"). */
+  map?: boolean;
+}
+
 export type SceneItem =
   | { kind: "line"; speaker: string; text: string; voice?: LineVoice }
-  | { kind: "choice"; options: { text: string; then: SceneItem[] }[] }
+  | { kind: "choice"; options: ChoiceOption[] }
   | { kind: "set"; fact: string; value: number; add: boolean }
   /** A sound event played on V at this point of the scene. */
   | { kind: "sound"; event: string }
@@ -148,6 +179,26 @@ export function sceneGoes(spec: SceneSpec): string[] {
 export function alwaysGoes(items: SceneItem[]): boolean {
   return items.some((it) => it.kind === "go" || (it.kind === "choice" && it.options.every((o) => alwaysGoes(o.then))));
 }
+
+/** Whether an option shows yellow, as the game marks options that move the story on: as written (main:), or
+ *  when what follows it goes to a beat or sets a fact. */
+export function mainOption(o: ChoiceOption): boolean {
+  const changes = (items: SceneItem[]): boolean => items.some((it) => it.kind === "go" || it.kind === "set" || (it.kind === "choice" && it.options.some((x) => changes(x.then))));
+  return o.main ?? changes(o.then);
+}
+
+/** The option's condition in a few words, as the game shows it in front of the option: "Corpo", "Body, hard",
+ *  "Pay 500", "Pay, medium". */
+export function optionTag(o: ChoiceOption): string | undefined {
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+  if (o.lifepath) return { corpo: "Corpo", nomad: "Nomad", streetkid: "Street Kid" }[o.lifepath];
+  if (o.check) return `${o.check.attribute === "tech" ? "Technical Ability" : cap(o.check.attribute)}, ${o.check.difficulty}`;
+  if (o.pay !== undefined) return typeof o.pay === "number" ? `Pay ${o.pay}` : `Pay, ${o.pay}`;
+  return undefined;
+}
+
+/** Where an option's items are in the story file, from the option's path. */
+export const optionItemsPath = (option: (string | number)[], o: ChoiceOption) => (o.map ? [...option, "then"] : option);
 
 /** A quest's own fact: the quest id is its prefix. A name with "game:" in front is the game's own fact. */
 export function factName(story: { id: string }, name: string): string {
@@ -245,7 +296,9 @@ export function readStory(text: string): StoryRead {
       } else if (keys.length === 1 && keys[0] === "choice") {
         const opts = o.choice as Record<string, unknown>;
         if (!opts || typeof opts !== "object" || Array.isArray(opts) || !Object.keys(opts).length) { add(p, where, "A choice lists its options, each with what follows: choice: { Take it: [ ... ], Leave it: [ ... ] }"); return; }
-        items.push({ kind: "choice", options: Object.entries(opts).map(([text, then], j) => ({ text, then: then == null ? [] : readItems(then, [...p, "choice", text], `${where} option ${j + 1}`, speakers) })) });
+        const options = Object.entries(opts).map(([text, v], j) => readOption(text, v, [...p, "choice", text], `${where} option ${j + 1}`, speakers));
+        if (options.every((o) => o.lifepath || o.check || o.pay !== undefined)) add([...p, "choice"], where, "Every option of this choice has a lifepath, a check or a payment, so some V could have none to pick. Leave at least one option open to everyone.");
+        items.push({ kind: "choice", options });
       } else if (keys.length === 1 && keys[0] === "set") {
         const f = readFact(o.set);
         if (!f) add(p, where, "set names a fact, optionally with a value: set: took, or set: { fact: took, to: 2 }, or set: { fact: count, add: 1 }.");
@@ -262,6 +315,42 @@ export function readStory(text: string): StoryRead {
       } else add(p, where, `One line per item: ${keys.join(", ")} are in one item.`);
     });
     return items;
+  };
+  // An option is the list of what follows it, or a map with that list under then: and what kind it is.
+  const readOption = (text: string, v: unknown, p: (string | number)[], where: string, speakers: Set<string>): ChoiceOption => {
+    if (v === null || v === undefined) return { text, then: [] };
+    if (Array.isArray(v)) return { text, then: readItems(v, p, where, speakers) };
+    const o: ChoiceOption = { text, then: [], map: true };
+    if (typeof v !== "object") { add(p, where, `The option "${text}" is a list of what follows it, or a map with then: (that list) and its kind: main, lifepath, check or pay.`); return o; }
+    const m = v as Record<string, unknown>;
+    for (const k of Object.keys(m)) if (!["then", "main", "lifepath", "check", "pay"].includes(k)) add([...p, k], where, `Unknown key "${k}" in the option "${text}". Keys: then (what follows it), main, lifepath, check, pay. A plain option is just its list: ${text}: [ { V: ... } ]`);
+    if (m.then !== undefined && m.then !== null) o.then = readItems(m.then, [...p, "then"], where, speakers);
+    if (m.main !== undefined) {
+      const main = m.main === true || m.main === "yes" ? true : m.main === false || m.main === "no" ? false : undefined;
+      if (main === undefined) add([...p, "main"], where, "main is yes (the option shows yellow: it moves the story on) or no (white). Without it, an option that goes to a beat or sets a fact is yellow.");
+      else o.main = main;
+    }
+    if (m.lifepath !== undefined) {
+      const words = String(m.lifepath).toLowerCase().replace(/[^a-z]/g, "");
+      const lifepath = words === "corporate" ? "corpo" : words;
+      if (lifepath in Lifepaths) o.lifepath = lifepath as Lifepath;
+      else add([...p, "lifepath"], where, `lifepath is corpo, nomad or streetkid, not "${String(m.lifepath)}".`);
+    }
+    if (m.check !== undefined) {
+      const c = m.check as Record<string, unknown>;
+      const keys = c && typeof c === "object" && !Array.isArray(c) ? Object.keys(c) : [];
+      const attribute = keys[0]?.toLowerCase().replace(/[^a-z]/g, "").replace(/^technical(ability)?$/, "tech");
+      const difficulty = keys.length === 1 ? String(c[keys[0]]).toLowerCase() : "";
+      if (keys.length !== 1 || !(attribute! in Attributes) || !(Difficulties as readonly string[]).includes(difficulty)) add([...p, "check"], where, `check names one attribute and how hard it is: check: { body: hard }. Attributes: body, intelligence, reflexes, tech, cool. Difficulties: ${Difficulties.join(", ")}.`);
+      else o.check = { attribute: attribute as Attribute, difficulty: difficulty as Difficulty };
+    }
+    if (m.pay !== undefined) {
+      const pay = typeof m.pay === "number" ? m.pay : String(m.pay).toLowerCase();
+      if ((typeof pay === "number" && Number.isInteger(pay) && pay > 0) || (Difficulties as readonly unknown[]).includes(pay)) o.pay = pay as number | Difficulty;
+      else add([...p, "pay"], where, `pay is eddies (pay: 500) or a difficulty, a price that grows with V's level (pay: medium). Difficulties: ${Difficulties.join(", ")}.`);
+    }
+    if ([o.lifepath, o.check, o.pay].filter((x) => x !== undefined).length > 1) add(p, where, `The option "${text}" has more than one of lifepath, check and pay. Give it one.`);
+    return o;
   };
   if (typeof rawScenes !== "object" || Array.isArray(rawScenes)) add(["scenes"], "scenes", "scenes is a list of names, each with its lines.");
   else for (const [name, v] of Object.entries(rawScenes)) {

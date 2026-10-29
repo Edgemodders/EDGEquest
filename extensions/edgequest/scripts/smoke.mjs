@@ -221,6 +221,35 @@ try {
       audio === "sa_airdrop_package_land,sa_nope_not_a_sound" && soundItems === "sound/edgewave_test,sound/sa_nope_not_a_sound" && afterCustom === "sound/edgewave_test+,sound/sa_nope_not_a_sound",
       "music and sound: phase nodes and scene events as the game's, read back in words; unknown names on the checklist until a custom sound exists",
       sm.problems.map((x) => x.message).join("; ") || `${audio} | ${soundItems} | ${afterCustom} | ${sWords.split("\n").filter((l) => /Play/.test(l)).join(" / ")}`);
+    // Choice kinds: yellow worked out or as written, a lifepath, an attribute check and payments, made as the
+    // game's options are and read back with their tags.
+    const kindsFile = path.join(proj, "kinds_test.quest.yaml");
+    fs.writeFileSync(kindsFile, "quest: Kinds\nid: kinds_test\nauthor: edgequest\nbeats:\n  a:\n    objective: Talk\n    steps: [ { scene: s } ]\n  b:\n    objective: Done\n    steps: [ done ]\nscenes:\n  s:\n    - V: Well?\n    - choice:\n        Ask: [ { V: What is it? } ]\n        Pull rank:\n          lifepath: corpo\n          then: [ { go: b } ]\n        Force it:\n          check: { body: hard }\n          main: no\n          then: [ { go: b } ]\n        Pay him:\n          pay: 500\n          then: [ { V: Here. } ]\n        Pay more:\n          pay: medium\n          main: yes\n");
+    const km = await core.makeQuest(proj, kindsFile, bridge, { index: idx, noCheck: true });
+    const kJson = km.problems.length ? undefined : JSON.parse((await bridge.fileToJson(path.join(proj, "source", "archive", "mod", "edgequest", "kinds_test", "scenes", "s.scene"))).json);
+    const kOpts = kJson ? core.readScene(kJson).options.map((o) => `${o.text}${o.main ? "*" : ""}${o.tag ? `[${o.tag}]` : ""}${o.condition ? `(${o.condition})` : ""}`).join() : "";
+    const kFlags = kJson ? kJson.Data.RootChunk.sceneGraph.Data.graph.map((n) => n.Data).find((d) => d.$type === "scnChoiceNode").options.map((o) => o.type.properties).join() : "";
+    check(kOpts === "Ask,Pull rank*[Corpo],Force it[Body, hard],Pay him[Pay 500],Pay more*[Pay, medium]" && kFlags === "0,257,256,768,769",
+      "choice kinds: yellow worked out or as written, a lifepath hidden from others, a check and payments, read back as the game tags them", km.problems.map((x) => x.message).join("; ") || `${kOpts} | flags ${kFlags}`);
+    const kindProblems = core.readStory("quest: K\nid: k\nauthor: me\nbeats:\n  a: { objective: A, steps: [ { scene: s } ] }\nscenes:\n  s:\n    - choice:\n        One: { lifepath: corpo, pay: 5 }\n        Two: { check: { luck: hard } }\n        Three: { main: maybe, colour: red }\n").problems.map((x) => x.message);
+    check(kindProblems.length === 4 && /more than one of lifepath/.test(kindProblems.join()) && /attributes: body/i.test(kindProblems.join()) && /main is yes/.test(kindProblems.join()) && /Unknown key "colour"/.test(kindProblems.join()),
+      "an option with two kinds, an unknown attribute, a bad main: and an unknown key are named", kindProblems.join(" | "));
+    const allLocked = core.readStory("quest: K\nid: k\nauthor: me\nbeats:\n  a: { objective: A, steps: [ { scene: s } ] }\nscenes:\n  s:\n    - choice:\n        One: { lifepath: corpo }\n        Two: { pay: 5 }\n").problems.map((x) => x.message).join();
+    check(/Leave at least one option open/.test(allLocked), "a choice whose every option has a lifepath, check or payment is named", allLocked);
+    // setOption: an option becomes a map with its items under then:, edits and voice paths follow, and with
+    // nothing left it is a plain list again.
+    let k = core.setOption(storyNow, leave, { lifepath: "nomad" });
+    k = core.setOption(k, leave, { check: { attribute: "cool", difficulty: "easy" } });
+    k = core.setOption(k, leave, { main: false });
+    k = core.insertItem(k, [...leave, "then"], 0, { V: "Not today." });
+    k = core.setChoiceGo(k, leave, "look");
+    const ks = core.readStory(k).story;
+    const kLeave = ks?.scenes.get("arrival").items[1].options[1];
+    const kLine = ks && core.storyLines(ks).find((l) => l.text === "Not today.");
+    const back = core.setOption(core.setOption(k, leave, { condition: null }), leave, { main: null });
+    check(kLeave?.check?.attribute === "cool" && !kLeave.lifepath && kLeave.main === false && kLeave.then.map((x) => x.kind).join() === "line,line,go" && JSON.stringify(kLine?.path) === JSON.stringify([...leave, "then", 0]) &&
+      /Leave:\n\s+check:[^\n]*\n\s+main: no\n\s+then:/.test(k) && core.readStory(back).story?.scenes.get("arrival").items[1].options[1].map === undefined,
+      "setOption writes an option's kind before then:, edits and voice paths follow then:, and an option with no kind left is a plain list again", k.split("Leave:")[1]?.slice(0, 160));
     const every = core.assignVoiceIds(storyNow, true);
     const after = core.readStory(every.text).story;
     check(every.added === 2 && core.storyLines(after).every((l) => l.voice?.id), "preparing for voicing gives every line a voice id, and nothing else", `${every.added} added`);

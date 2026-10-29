@@ -253,6 +253,11 @@
       <button class="icon" data-act="${act}-remove" ${attrs} title="Delete">✕</button></span>`;
   }
 
+  // An option's kinds, as the editor's pickers name them (the story file's lifepath:, check: and pay:).
+  const Lifepaths = [["lifepath:corpo", "Corpo only"], ["lifepath:nomad", "Nomad only"], ["lifepath:streetkid", "Street Kid only"]];
+  const Checks = [["check:body", "Body check"], ["check:intelligence", "Intelligence check"], ["check:reflexes", "Reflexes check"], ["check:tech", "Technical Ability check"], ["check:cool", "Cool check"]];
+  const Difficulties = ["easy", "medium", "hard", "impossible"];
+
   function row(r, scene) {
     const d = `d${Math.min(r.depth, 6)}`;
     const at = r.list ? `data-list="${esc(JSON.stringify(r.list))}" data-index="${r.index}"` : "";
@@ -267,8 +272,18 @@
     if (r.kind === "option") {
       const opts = [`<option value="">the scene goes on</option>`, ...model.beatNames.map((n) => `<option value="${esc(n.name)}"${n.name === r.go ? " selected" : ""}>${esc(n.objective)} (${esc(n.name)})</option>`)].join("");
       const attrs = `data-choice="${esc(JSON.stringify(r.choice))}" data-option-name="${esc(r.text)}"`;
-      return `<div class="row option ${d}">▸ <input type="text" class="option-text" value="${esc(r.text)}" ${attrs} title="The option, as the player sees it">
-        <span class="muted">goes on to</span> <select data-option="${esc(JSON.stringify(r.path))}">${opts}</select>${tools({ up: !r.first, down: !r.last, attrs, act: "option" })}</div>`;
+      const key = esc(JSON.stringify(r.path));
+      const pick = (attr, title, list, value) => `<select ${attr}="${key}" title="${esc(title)}">${list.map(([v, words]) => `<option value="${esc(v)}"${v === value ? " selected" : ""}>${esc(words)}</option>`).join("")}</select>`;
+      const auto = r.mainSet === undefined;
+      const colour = pick("data-main-of", "Yellow options move the story on, as the game marks them. Auto: yellow when the option goes to a beat or sets a fact.",
+        [["", `${r.main ? "Yellow" : "White"} (auto)`], ["yes", "Yellow"], ["no", "White"]], auto ? "" : r.mainSet ? "yes" : "no");
+      const condition = pick("data-cond-of", "Who can pick it: a lifepath only, an attribute check (locked below it), or a payment (taken on choosing)", [["", "Anyone"], ...Lifepaths, ...Checks, ["pay", "Pay eddies"]], r.condition ?? "");
+      const extra = r.condition?.startsWith("check:")
+        ? pick("data-diff-of", "How hard: the number grows with V's level", Difficulties.map((x) => [x, x]), r.difficulty)
+        : r.condition === "pay" ? `<input type="text" class="pay" data-pay-of="${key}" value="${esc(r.pay)}" placeholder="500 or medium" title="Eddies, or a difficulty: a price that grows with V's level">` : "";
+      return `<div class="row option ${d}${r.main ? " main" : ""}">▸ ${r.tag ? `<span class="tag">[${esc(r.tag)}]</span>` : ""}<input type="text" class="option-text" value="${esc(r.text)}" ${attrs} title="The option, as the player sees it">
+        <span class="muted">goes on to</span> <select data-option="${key}">${opts}</select>${tools({ up: !r.first, down: !r.last, attrs, act: "option" })}
+        <div class="kind">${colour}${condition}${extra}</div></div>`;
     }
     const key = esc(JSON.stringify(r.path));
     const speaker = scene.speakers.length > 1
@@ -340,6 +355,18 @@
   app.addEventListener("change", (e) => {
     const t = e.target;
     if (t.dataset.option) post({ type: "go", option: JSON.parse(t.dataset.option), beat: t.value });
+    else if (t.dataset.mainOf) post({ type: "optionKind", option: JSON.parse(t.dataset.mainOf), change: { main: t.value === "" ? null : t.value === "yes" } });
+    else if (t.dataset.condOf) {
+      const [kind, which] = t.value.split(":");
+      const change = !kind ? { condition: null } : kind === "lifepath" ? { lifepath: which } : kind === "check" ? { check: { attribute: which, difficulty: "medium" } } : { pay: "medium" };
+      post({ type: "optionKind", option: JSON.parse(t.dataset.condOf), change });
+    } else if (t.dataset.diffOf) {
+      const attribute = app.querySelector(`[data-cond-of="${CSS.escape(t.dataset.diffOf)}"]`).value.split(":")[1];
+      post({ type: "optionKind", option: JSON.parse(t.dataset.diffOf), change: { check: { attribute, difficulty: t.value } } });
+    } else if (t.dataset.payOf) {
+      const v = t.value.trim().toLowerCase();
+      post({ type: "optionKind", option: JSON.parse(t.dataset.payOf), change: { pay: /^\d+$/.test(v) ? Number(v) : v } });
+    }
     else if (t.dataset.then) post({ type: "then", beat: t.dataset.then, then: t.value });
     else if (t.dataset.todo !== undefined) post({ type: "todo", index: Number(t.dataset.todo), done: t.checked });
     else if (t.dataset.optionName !== undefined) { if (t.value.trim() && t.value.trim() !== t.dataset.optionName) post({ type: "renameOption", choice: JSON.parse(t.dataset.choice), option: t.dataset.optionName, to: t.value }); else t.value = t.dataset.optionName; }
