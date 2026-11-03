@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://edgemodders.github.io/EDGEquest/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
-  <img src="docs/assets/brand/badges/status.svg" alt="status: scaffold">
+  <img src="docs/assets/brand/badges/status.svg" alt="status: Q2 write">
   <img src="docs/assets/brand/badges/game.svg" alt="game: Cyberpunk 2077">
   <img src="docs/assets/brand/badges/makes.svg" alt="makes: quests">
   <a href="LICENSE"><img src="docs/assets/brand/badges/license.svg" alt="license: MIT"></a>
@@ -17,7 +17,7 @@ EDGEquest builds on the other EDGE tools: [REDcode](https://github.com/Edgemodde
 **[Read the docs](https://edgemodders.github.io/EDGEquest/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: Q2 Write, not released yet.** EDGEquest reads the game's quests in plain words (Q1) and makes new ones from a story file: a quest made from its template plays in the game from start to end, and a choice can branch it to different endings. The Storyboard edits a quest as cards, one per beat, and the MCP server lets an assistant start, edit and make a quest. There is no release yet: to try it, build it from source ([Dev setup](docs/dev-setup.md), section 5). What works so far is in the [changelog](CHANGELOG.md), and where it goes is in the [design](docs/design.md). For game 2.5, with REDbridge 0.11.0 or later; tested in the game on 2.31, and on 2.5 next.
+> **Status: Q2 Write, not released yet.** EDGEquest reads the game's quests in plain words (Q1) and makes new ones from a story file: a quest made from its template plays in the game from start to end, and a choice can branch it to different endings. The Storyboard edits a quest as cards, one per beat, and the MCP server lets an assistant start, edit and make a quest. Kinds of choice options (yellow, lifepath, attribute checks, payments) and music and sound in a quest are built, with their in-game tests still to come. There is no release yet: to try it, build it from source ([Dev setup](docs/dev-setup.md), section 5). What works so far is in the [changelog](CHANGELOG.md), and where it goes is in the [design](docs/design.md). For game 2.5, with REDbridge 0.11.0 or later; a made quest plays in the game on 2.5 (in-game test 7, 2026-10-31).
 
 ## Repository layout
 
