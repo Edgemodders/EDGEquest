@@ -121,7 +121,7 @@ How the game marks an option, from 2,722 options in 579 sampled scenes and the g
 | Showing it | `questCondition` hides an option when false: 489 options, mostly fact tests. Some lifepath options repeat the lifepath test there (`sq012_07a_conclusions.scene`) |
 | Other | `iconTagIds` (`ChoiceCaptionParts.SitIcon`, `JackInIcon`, …) for action options; `isSingleChoice` (157); `timedParams` (timed choices, rare); `gameplayAction` (`Interactions.Inspect`) |
 
-EDGEquest writes yellow from the story (worked out or `main:`), a lifepath as both blueline and quest condition, a check with `DeviceContentAssignment.Autoscaling` (power level `Character.ScaleToPlayerLevel`), a payment with `Pay` set too. *Unverified until in-game test 8:* that another lifepath's option is hidden, that a failed check or payment shows locked, and that paying takes the money.
+EDGEquest writes yellow from the story (worked out or `main:`), a lifepath as both blueline and quest condition, a check with `DeviceContentAssignment.Autoscaling` (power level `Character.ScaleToPlayerLevel`), a payment with `Pay` set too. In-game test 8 (2026-11-03) confirmed that paying takes the money and that a failed check shows locked (dimmed, `15 / 20`: V's value over the number needed; a passed check shows V's value alone). *Still unverified:* that another lifepath's option is hidden (left for the end-to-end test).
 
 ## Music and sound in quests (Q4 study, 2026-10-24)
 
