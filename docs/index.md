@@ -4,6 +4,8 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 
 | Document | What it covers |
 |---|---|
+| [Getting started](guide.html) | For modders: install EDGEquest, read a game quest, write your first quest and play it |
+| [The story file](story.html) | Everything a story file holds: places, beats and steps, scenes, lines and choices (yellow, lifepath, checks, payments), facts, music and sound, the checklist, and what saving makes |
 | [Design](design.html) | The mission, the decisions, what quest data is made of, what EDGEquest owns and what the other EDGE tools do, its shape, the MCP server, the phases, open questions. Draft 0.2, agreed 2026-10-21 |
 | [Quest formats](design/formats.html) | The game's quest files, how one id ties a spoken line together, how a mod adds a quest through ArchiveXL, what must agree across files, two quest mods studied, how the game stages its city scenes |
 | [Tests](testing.html) | Every test run on the dev PC, with its result |
@@ -14,16 +16,16 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 
 ## Roadmap status
 
-As of 2026-11-02. Nothing is released yet; [Dev setup](dev-setup.html) section 5 builds it from source.
+As of 2026-11-03. Nothing is released yet; a 0.1.0 preview is being prepared (Q5). [Dev setup](dev-setup.html) section 5 builds it from source.
 
 | Phase | Status |
 |---|---|
 | Q0 Design | Done 2026-10-21 |
 | Q1 Read | Built 2026-10-21; the owner's hand test passed the same day (one fault, fixed). Q1's own test (a modder follows a side quest on the quest page alone) is still open |
-| Q2 Write | Plan agreed 2026-10-21; being built. The template quest plays in the game from start to end (in-game test 4, 2026-10-22). The checklist added 2026-10-22. Beats, the Storyboard and voice prompts agreed 2026-10-23; beats built, and a choice branches the quest to either ending in the game (test 5, 2026-10-23). The Storyboard and voice prompts built 2026-10-23; make on save, New Quest, the Project Quests view and MCP `quest_new`, `quest_edit`, `quest_make` built 2026-10-24. The owner's hand tests passed. Kinds of choice options (yellow, lifepath, attribute checks, payments) built 2026-10-29; in-game test 8 to come. A made quest plays on game 2.5 (test 7, 2026-10-31). Next: phone calls, Copy Scene, a story-file reference page |
+| Q2 Write | Plan agreed 2026-10-21; being built. The template quest plays in the game from start to end (in-game test 4, 2026-10-22). The checklist added 2026-10-22. Beats, the Storyboard and voice prompts agreed 2026-10-23; beats built, and a choice branches the quest to either ending in the game (test 5, 2026-10-23). The Storyboard and voice prompts built 2026-10-23; make on save, New Quest, the Project Quests view and MCP `quest_new`, `quest_edit`, `quest_make` built 2026-10-24. The owner's hand tests passed. Kinds of choice options (yellow, lifepath, attribute checks, payments) built 2026-10-29; in-game test 8 passed 2026-11-03 (one lifepath check left for a later end-to-end test). A made quest plays on game 2.5 (test 7, 2026-10-31). The story-file reference page written 2026-11-03 ([The story file](story.html)). Next: phone calls and Copy Scene, after the 0.1.0 preview |
 | Q3 Try it | Not started |
-| Q4 Voice, sound and world | Started: music and sound in beats and scenes built 2026-10-24, with EDGEwave's sound events; in-game test 6 to come. Voice in the game waits for EDGEwave's `.wem` route; places and people for EDGEbuilder |
-| Q5 Ship | Not started |
+| Q4 Voice, sound and world | Started: music and sound in beats and scenes built 2026-10-24, with EDGEwave's sound events; in-game test 6 passed 2026-11-03 (a custom sound and a q104 music cue play from a new quest). Voice in the game waits for EDGEwave's `.wem` route; places and people for EDGEbuilder |
+| Q5 Ship | Started 2026-11-03 for a 0.1.0 preview: the release workflow with Nexus (page 35750), the store READMEs, Getting started and the story-file page. Before the release: Q1's own test, the README status line and badge, the changelog section |
 | Q6 The assistant builds it all | Agreed as a direction 2026-10-22; after Q5 |
 | Q7 Mods' tools | Agreed 2026-10-29: a quest calls REDnode packages' functions from a beat, a scene or a choice ([design](design.html#mods-tools-in-a-quest)); after Q3. The player's say: REDnode #22, open |
 | Q8 Happenings | Direction agreed 2026-11-02: scripted moments in the city that are not a quest, made like quests, on a stage EDGEbuilder builds ([design](design.html#happenings)); the details are a proposal |
