@@ -163,6 +163,18 @@ How they fit together:
 
 *Unverified:* what `city_scenes_advanced_spawning_system_enabled` changes; what `unfreezingTriggerNodeRef` on a phase node does (0 on every instance read); whether a mod's phase can use `phaseInstancePrefabs` as the game does.
 
+## Arrivals near V: MaxTac and dynamic spawns (study, 2026-11-03)
+
+Read from the game's TweakDB and REDnode's game API types (game 2.5); nothing here is tried in game yet.
+
+| What | How the game does it |
+|---|---|
+| MaxTac at the top wanted level | **Not a quest or a scene:** the police system (the `PreventionSystem` script and the native `gamePreventionSpawnSystem`). Each faction's heat stages are TweakDB records (`gamedataPreventionHeatData_Record`, 38): a unit pool, how many, spawn ranges. Only the top stage of `PreventionData.NCPD`, `NCPDLowSec` and `KurtzArmy` sets `avRecord`: `Vehicle.max_tac_av`, spawned 5 to 100 m from V at any angle (`avSpawnDistanceRange`) |
+| The MaxTac AV | `Vehicle.max_tac_av`: entity `av_zetatech_surveyor_basic_01_ep1.ent`, appearance `zetatech_surveyor__basic_maxtac_camo_01`, tags `Av` and `MaxTac`, and `preventionPassengers`, the four MaxTac characters who drop out (rifle, mantis blades, netrunner, sniper) |
+| Calls behind it | `gamePreventionSpawnSystem` (native): `RequestAVSpawn(record, distanceRange, useOffTrafficPoints)`, `RequestAVSpawnAtLocation(record, location)`, `RequestUnitSpawn(record, transform)`, `RequestChaseVehicle`, `RequestRoadBlockadeSpawn`, and despawns. REDnode's `api` reaches them. *Unverified:* whether they work outside a police chase, and whether the passengers then act as police (hostile, raising the wanted level) |
+| A quest spawning near V, wherever V is | `questDynamicSpawnSystemNodeDefinition` with `questDynamicVehicleSpawn_NodeType`: `VehicleData` (records of `gamedataDynamicVehicleData_Record`, a vehicle with weighted characters, such as `DynamicSpawnSystem.courier_chase_scavs_bike_ma` for delivery chases), `waveTag`, `spawnDirectionPreference`, `distanceRange`; and despawn types. *Unverified:* whether it can bring an AV |
+| Trauma Team AVs | `Vehicle.av_trauma` and quest copies. In `ma_hey_spr_12` the AV is a placed world object that the activity's phase switches on and off; it does not fly in. How a story scene flies an AV in is *not studied yet* |
+
 ## Tools that already edit quests
 
 WolvenKit edits `.questphase` and `.scene` as node graphs (since 8.12.1, reworked in 8.17.0): add and connect nodes, a scene editor with a timeline, dialogue import from JSON (9.0.0), copying game lip sync. It has no undo yet. Whether it opens `.quest` as a graph is *unverified*. EDGEquest's place next to it: the story layer, checks across files, and assistants; raw graph editing stays in WolvenKit and REDcode's CR2W editor.
