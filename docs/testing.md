@@ -27,6 +27,18 @@ Every test run on the dev PC, with its result. A test is recorded when it is fir
 | Test 7, game 2.5, 2026-10-31 | On the dev PC's game 2.5 with ArchiveXL 1.28.0, Codeware 1.21.1, RED4ext 1.31.0: the test project's quest remade with EDGEquest on REDbridge 0.11.0, packed, installed, started from a save before the mod. The marker at V's door; arriving started the scene; "Look closer" ended the quest succeeded, and "Go inside" (after reloading) failed. The owner reported that it all worked | **Passed: made files play on game 2.5 as on 2.31** |
 | Test 8, kinds of choice options (planned 2026-10-29) | After test 7. In the test quest's scene `at_the_door`, give the choice five options on the beat page: one that goes to a beat (yellow by itself), one set to White, a Corpo-only option, a Body check (hard) and a payment (500). Make, pack, install; play once with a Corpo V and once with another lifepath (or a V with low Body and few eddies) | Open: yellow and white as set; the Corpo option only for a Corpo V; the check and payment tagged, locked when V falls short; paying takes the eddies |
 
+## Experiments (Q8, the owner's Trauma Team arrival)
+
+Agreed with the owner 2026-11-03: two experiments built on the owner's mod idea, a Trauma Team arrival when V is down, to decide what EDGEquest's happenings, Copy Scene and the repurposing of game moments can do ([design, Happenings](design.html#happenings); [formats, Arrivals near V](design/formats.html#arrivals-near-v-maxtac-and-dynamic-spawns-study-2026-11-03)). They are test mods in `Projects\EDGEquest_X_trauma`, not EDGEquest features. The REDnode package `edgex-trauma` (in the project's `rednode` folder, added to REDnode as a development folder) has a window with a button per step, and the same steps as tools (`edgex_trauma__callAv` and so on), which ask the player before each call.
+
+| Experiment | What it tries | Result |
+|---|---|---|
+| X2a, the MaxTac AV outside a chase | The police spawn system's `RequestAVSpawn('Vehicle.max_tac_av', 5 to 100 m)`, and `RequestAVSpawnAtLocation` 15 m ahead of V, with no wanted level. Watch: does it come, land and drop its crew; are they hostile; does the wanted level rise; does Clear take them away | Open |
+| X2b-1, a Trauma Team crew | The same call with a copy of the record whose `preventionPassengers` are four Trauma Team characters (`Character.mws_hey_07_trauma_medic_01`, `_02`, `_soldier_01`, `_02`), made at start through REDnode's TweakDB (TweakXL). Watch: do they drop out, how they act toward V, whether the drop-off animations play | Open |
+| X2b-2, a Trauma Team AV | The copy also gets the Zetatech Atlus the game's Trauma AVs use (`base\vehicles\special\av_zetatech_atlus_basic_02.ent`) instead of MaxTac's Surveyor. Watch: does a different AV model fly in and drop its crew | Open |
+| X1a, the prologue's arrival, trimmed, at its own place | A copy of `q001_00c_rescuing_girl.scene` with only its arrival part (entry `q001_trauma_arrives_in`: the AV flies in 10.9 s, lands, the soldiers jump down and the medics come with the stretchers and the pack, 14.2 s) and only the AV, two medics, two soldiers and the props; the AV and crew switched from the prologue's community (`#q001_com_trauma`) to spawned by the scene (`spawnDespawn`, as its props are). Played by a phase under the root quest that waits for the fact `edgex_tt_arrival`, set by the window's Start | Not built yet |
+| X1b, the same at V | The scene placed on V instead of the prologue's marker (`#q001_00c_sm_rescuing_girl`): a tag on an entity spawned at V, `Entity` markers, or `Player` placement | Not built yet; after X1a |
+
 ## Census and reader checks (Q1, 2026-10-21)
 
 | Check | Result |
