@@ -50,7 +50,8 @@ interface EDGEwaveApi {
   /** The project's own sounds (with `project`), then the game's events. */
   soundEvents?(o: { query?: string; music?: boolean; quest?: boolean; limit?: number; project?: string }): Promise<{ name: string; loops: boolean; min: number; max: number; tags: string[]; music: boolean; quest: boolean; project?: { type: string; file?: string }; replaces?: boolean }[]>;
   /** `show: false` plays at once with no tab (EDGEwave #8, Windows); otherwise the Hear panel. */
-  playEvent?(o: { name: string; project?: string; show?: boolean }): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** inGame: plays in the running game through REDnode (a music cue lives in the game's sound banks). */
+  playEvent?(o: { name: string; project?: string; show?: boolean; inGame?: boolean }): Promise<{ ok: true } | { ok: false; reason: string }>;
   /** Stops what playEvent plays with show: false. Not in builds before EDGEwave #8. */
   stopSound?(): Promise<void> | void;
 }
@@ -308,6 +309,8 @@ async function pickSound(kind: "music" | "sound", project: string, current?: str
   const api = await edgewave();
   if (!api?.soundEvents) return typeIt();
   const play: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon("play"), tooltip: "Play" };
+  // A music cue is in the game's sound banks, which only the game plays: EDGEwave plays it in the running game.
+  const playInGame: vscode.QuickInputButton = { iconPath: new vscode.ThemeIcon("play"), tooltip: "Play in the running game (music plays only there)" };
   const TypeName = "$(edit) Type a name...";
   const qp = vscode.window.createQuickPick<vscode.QuickPickItem>();
   qp.title = kind === "music" ? "Music cue (game events from EDGEwave)" : "Sound (this project's and the game's, from EDGEwave)";
@@ -329,7 +332,7 @@ async function pickSound(kind: "music" | "sound", project: string, current?: str
       ...found.map((e) => ({
         label: e.name,
         description: [e.project ? (e.replaces ? "this project's, in place of the game's" : "this project's sound") : "", e.loops ? "loops" : "", secs(e), e.music && kind === "sound" ? "music" : ""].filter(Boolean).join(" · "),
-        detail: e.tags.join(", ") || undefined, buttons: kind === "sound" || e.project ? [play] : [],
+        detail: e.tags.join(", ") || undefined, buttons: [e.music && !e.project ? playInGame : play],
       })),
       { label: TypeName, alwaysShow: true, description: "a name not listed" },
     ];
@@ -337,6 +340,11 @@ async function pickSound(kind: "music" | "sound", project: string, current?: str
   let timer: NodeJS.Timeout | undefined;
   qp.onDidChangeValue((v) => { clearTimeout(timer); timer = setTimeout(() => void search(v), 200); });
   qp.onDidTriggerItemButton(async (e) => {
+    if (e.button === playInGame) {
+      const r = await api.playEvent?.({ name: e.item.label, project, show: false, inGame: true });
+      if (r && !r.ok) void vscode.window.showInformationMessage(`${e.item.label} is music, which plays only in the running game: ${r.reason}`);
+      return;
+    }
     let r = await api.playEvent?.({ name: e.item.label, project, show: false });
     // Builds before EDGEwave #8 ignore show and open the Hear panel; away from Windows, ask for the panel.
     if (r && !r.ok && process.platform !== "win32") r = await api.playEvent?.({ name: e.item.label, project });
