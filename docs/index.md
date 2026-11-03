@@ -5,7 +5,7 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 | Document | What it covers |
 |---|---|
 | [Design](design.html) | The mission, the decisions, what quest data is made of, what EDGEquest owns and what the other EDGE tools do, its shape, the MCP server, the phases, open questions. Draft 0.2, agreed 2026-10-21 |
-| [Quest formats](design/formats.html) | The game's quest files, how one id ties a spoken line together, how a mod adds a quest through ArchiveXL, what must agree across files, two quest mods studied |
+| [Quest formats](design/formats.html) | The game's quest files, how one id ties a spoken line together, how a mod adds a quest through ArchiveXL, what must agree across files, two quest mods studied, how the game stages its city scenes |
 | [Tests](testing.html) | Every test run on the dev PC, with its result |
 | [Dev setup](dev-setup.html) | What a PC needs to work on EDGEquest, and how to build, test and package it |
 | [Changelog](https://github.com/Edgemodders/EDGEquest/blob/main/CHANGELOG.md) | What changed, newest first; the release notes come from it |
@@ -14,7 +14,7 @@ EDGEquest is the EDGE quest maker for Cyberpunk 2077, a VS Code extension with a
 
 ## Roadmap status
 
-As of 2026-10-29. Nothing is released yet; [Dev setup](dev-setup.html) section 5 builds it from source.
+As of 2026-11-02. Nothing is released yet; [Dev setup](dev-setup.html) section 5 builds it from source.
 
 | Phase | Status |
 |---|---|
@@ -26,5 +26,6 @@ As of 2026-10-29. Nothing is released yet; [Dev setup](dev-setup.html) section 5
 | Q5 Ship | Not started |
 | Q6 The assistant builds it all | Agreed as a direction 2026-10-22; after Q5 |
 | Q7 Mods' tools | Agreed 2026-10-29: a quest calls REDnode packages' functions from a beat, a scene or a choice ([design](design.html#mods-tools-in-a-quest)); after Q3. The player's say: REDnode #22, open |
+| Q8 Happenings | Direction agreed 2026-11-02: scripted moments in the city that are not a quest, made like quests, on a stage EDGEbuilder builds ([design](design.html#happenings)); the details are a proposal |
 
 Source code and issues: [github.com/Edgemodders/EDGEquest](https://github.com/Edgemodders/EDGEquest)

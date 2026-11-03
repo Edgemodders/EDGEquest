@@ -136,6 +136,33 @@ A sample of 300 of the 3,837 quest phases and 150 of the 4,627 scenes, read thro
 
 Music is posted as cue events per quest: `mus_q001_v_meets_dex_01_START_intro_dialogue_choice`, `..._02_take_the_chip` to `..._05_STOP_end_silent`; `mus_q104_drone_flight_01_START` and `_02_STOP`. Sound events are names such as `sa_airdrop_package_land`; scene events are mostly a performer's foley (`q004_sc_06_v_stands_up`). The two switches seen set `radio_station`. *Unverified:* whether a cue plays well outside its quest, and what the mix signposts do.
 
+## City scenes: how the game stages happenings (study, 2026-11-02)
+
+The game's random happenings in Night City are quest phases with no journal entry. Read through REDbridge 0.11.0 on game 2.5, with EDGEquest's own describer.
+
+| Folder under `base\open_world\` | What it holds |
+|---|---|
+| `city_scenes\` | **City scenes**, the game's own name for them: 113 `.questphase`, about 1,171 `.community`, 8 `.scene` (4 scenes, each also in a `versions\gold\` copy). About 90 templates under `templates\combat\` and `templates\noncombat\` (a vending machine being refilled, a street performer, a highway patrol, gangs at a barbecue), a phase per district, and the root `open_world_city_scenes.questphase` |
+| `street_stories\` (`sts_`), `mini_world_stories\` (`mws_`), `minor_activities\` (`ma_`) | Other open-world content, also as quest phases (not studied yet) |
+
+How they fit together:
+
+| Level | What it does | Seen in |
+|---|---|---|
+| Root | Starts every district phase, unless the fact `disable_city_scenes` is on (only the game's own test quests set it), and ends at `q115_point_of_no_return` | `open_world_city_scenes` |
+| District | Waits until V is inside the district's content trigger area, then starts every instance at once. Each instance is an **inline copy** of a template, not a link to the template file (no phase node in the two districts read names a file), with its own world prefab in `phaseInstancePrefabs` (53 instances in Little China, 63 in the Glen). Each is behind a gate, open at first | `cs_wat_lch_phase` (1,307 steps), `cs_hey_gle_phase` |
+| Instance | **Appears out of sight:** waits until V is *outside* its reset area (`cs_tr_reset`), then switches on its prop variant (`questTogglePrefabVariant`), clears the crowd from its stage (`questCrowdManagerNodeType_EnableNullArea`) and switches on its community (`questSpawnManager`, `questCommunityTemplate_NodeType`). **Is seen** when V is inside the area *and looks at* one of its people (`questTriggerCondition` with `questCameraFocus_ConditionType`). Then it sets its `_triggered` fact and the group's `_disabled` fact, which hides the group's other instances, waits (30 minutes or 24 hours of game time), waits until V is outside again, and clears away. Its gate closes | Every instance read |
+| Rotation | Counts the instances seen; at 11 the counter resets and every gate opens again | Little China's intervention group |
+
+| Part | Class and fields | Seen |
+|---|---|---|
+| The people | `.community` (`communityCommunityTemplate`): spawn entries, each with a `characterRecordId` (`Character.WorkerMaleDE`), a list of appearances, and time periods (`hour` Day or Night, `quantity`, `markings` that name the AI spots in the world where they stand) | `cs_workers_break.community`: three workers by day at spots marked `cs_worker` |
+| The props | A prefab with variants, switched on and off by the phase | Every template read |
+| A scene, when there is one | V alone with one choice option at a scene marker, played over and over while a fact is on (`cs_warm_hands_on`; by its names, V warms their hands at a homeless camp's fire). It has a workspot for V and the scene category `cityOpenWorld` | `cs_homeless_trashcan_player_scene` |
+| Waits | 49 game-time waits, 31 real-time waits, 151 trigger area conditions, 46 "V looks at" conditions, 36 "has spawned" conditions in Little China | `cs_wat_lch_phase` |
+
+*Unverified:* what `city_scenes_advanced_spawning_system_enabled` changes; what `unfreezingTriggerNodeRef` on a phase node does (0 on every instance read); whether a mod's phase can use `phaseInstancePrefabs` as the game does.
+
 ## Tools that already edit quests
 
 WolvenKit edits `.questphase` and `.scene` as node graphs (since 8.12.1, reworked in 8.17.0): add and connect nodes, a scene editor with a timeline, dialogue import from JSON (9.0.0), copying game lip sync. It has no undo yet. Whether it opens `.quest` as a graph is *unverified*. EDGEquest's place next to it: the story layer, checks across files, and assistants; raw graph editing stays in WolvenKit and REDcode's CR2W editor.
