@@ -72,6 +72,7 @@ export class QuestPages {
       <div class="actions">${this.history.length ? `<button data-back="1">← Back</button>` : ""}<button data-raw="${esc(gamePath)}">Raw</button><button data-copy="${esc(gamePath)}">Copy path</button></div>
       ${extra}
       ${parents.length ? `<div class="used">Played by: ${parents.slice(0, 12).map((f) => link(f.path)).join(", ")}${parents.length > 12 ? ` and ${parents.length - 12} more` : ""}</div>` : ""}
+      <nav class="trail" hidden></nav>
     </header>`;
   }
 
@@ -143,19 +144,75 @@ export class QuestPages {
   a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; } a:hover { text-decoration: underline; }
   code { font-family: var(--vscode-editor-font-family); font-size: .92em; } aside ul { padding-left: 1.1em; } aside li { margin: .2em 0; word-break: break-word; } .refs code { display: inline-block; margin: 0 .4em .2em 0; }
   .error { color: var(--vscode-errorForeground); }
+  .trail { display: flex; align-items: center; gap: .3em; margin-top: .5em; overflow-x: auto; white-space: nowrap; font-size: .92em; padding-bottom: .15em; }
+  .trail[hidden] { display: none; } .trail .sep { color: var(--vscode-descriptionForeground); }
+  .crumb { display: inline-flex; gap: .35em; max-width: 20em; border: 1px solid var(--vscode-panel-border); padding: .1em .5em; cursor: pointer; color: var(--vscode-foreground); }
+  .crumb:hover { border-color: var(--vscode-textLink-foreground); } .crumb.here { border-color: var(--vscode-focusBorder); color: var(--vscode-textLink-foreground); }
+  .crumb .ct { overflow: hidden; text-overflow: ellipsis; } .crumb .cid { color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); }
+  .trail button { margin: 0; padding: .1em .6em; }
 </style></head><body>${body}
 <script nonce="${n}">
   const vscode = acquireVsCodeApi();
+  // The trail: the steps followed on this page by their links, in order. Clicking a crumb goes back
+  // to it; following a link from there drops the crumbs after it, as a browser's history does.
+  let trail = [], here = -1;
+  const trailEl = document.querySelector(".trail");
+  const stepOf = (el) => {
+    if (el.closest("header")) return null;
+    const s = el.closest(".step"); if (s) return s;
+    let p = el.closest(".line");
+    while (p && !p.classList.contains("step")) p = p.previousElementSibling;
+    return p;
+  };
+  const show = (id) => {
+    const el = document.getElementById("n" + id);
+    if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("hl"); setTimeout(() => el.classList.remove("hl"), 1500); }
+  };
+  const drawTrail = () => {
+    if (!trailEl) return;
+    trailEl.replaceChildren();
+    trailEl.hidden = trail.length === 0;
+    if (!trail.length) return;
+    const back = document.createElement("button");
+    back.textContent = "← Step"; back.title = "Back to the step before"; back.disabled = here <= 0; back.dataset.crumb = String(here - 1);
+    trailEl.append(back);
+    trail.forEach((id, i) => {
+      if (i) { const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "›"; trailEl.append(sep); }
+      const el = document.getElementById("n" + id);
+      const text = el ? (el.querySelector(".text")?.textContent ?? "").trim() : "";
+      const c = document.createElement("a");
+      c.className = "crumb" + (i === here ? " here" : ""); c.dataset.crumb = String(i); c.title = id + "  " + text;
+      const icon = document.createElement("span"); icon.textContent = el?.querySelector(".icon")?.textContent ?? "·";
+      const cid = document.createElement("span"); cid.className = "cid"; cid.textContent = id;
+      const ct = document.createElement("span"); ct.className = "ct"; ct.textContent = text;
+      c.append(icon, cid, ct);
+      trailEl.append(c);
+    });
+    const clear = document.createElement("button");
+    clear.textContent = "✕"; clear.title = "Clear the trail"; clear.dataset.clear = "1";
+    trailEl.append(clear);
+    trailEl.querySelector(".crumb.here")?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  };
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-open],[data-raw],[data-back],[data-copy],[data-node]");
+    const t = e.target.closest("[data-open],[data-raw],[data-back],[data-copy],[data-node],[data-crumb],[data-clear]");
     if (!t) return;
     if (t.dataset.open) vscode.postMessage({ open: t.dataset.open });
     else if (t.dataset.raw) vscode.postMessage({ raw: t.dataset.raw });
     else if (t.dataset.back) vscode.postMessage({ back: true });
     else if (t.dataset.copy) vscode.postMessage({ copy: t.dataset.copy });
-    else if (t.dataset.node) {
-      const el = document.getElementById("n" + t.dataset.node);
-      if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("hl"); setTimeout(() => el.classList.remove("hl"), 1500); }
+    else if (t.dataset.clear) { trail = []; here = -1; drawTrail(); }
+    else if (t.dataset.crumb !== undefined) {
+      const i = Number(t.dataset.crumb);
+      if (i < 0 || i >= trail.length) return;
+      here = i; drawTrail(); show(trail[i]);
+    } else if (t.dataset.node) {
+      const to = t.dataset.node;
+      const from = stepOf(t)?.id?.slice(1);
+      trail = trail.slice(0, here + 1);
+      if (from && trail[trail.length - 1] !== from) trail.push(from);
+      if (trail[trail.length - 1] !== to) trail.push(to);
+      here = trail.length - 1;
+      drawTrail(); show(to);
     }
   });
 </script></body></html>`;

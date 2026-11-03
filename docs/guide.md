@@ -27,6 +27,7 @@ EDGEquest uses REDcode's game folder and REDbridge. When REDcode is not running,
 - **Find Quest...** searches by in-game title ("Pyramid Song"), file name, fact, journal entry, person or place.
 - A **quest page** shows a quest or phase as numbered steps in plain words: what starts it, what it waits for, the facts it sets and tests, its journal entries, and the scenes and phases it plays, which are links.
 - A **scene page** shows who is in the scene, each line with its speaker and text, and each choice and where it leads.
+- A step's links (→ 12) jump to the step they lead to. The steps you follow gather in a **trail** under the page's header, which stays in view: click a crumb, or **← Step**, to go back to where you clicked from.
 - **Raw** opens the file in REDcode's editor, when you want the nodes themselves.
 
 Reading a quest you know is the quickest way to learn how the game builds quests, and where its places, music cues and facts are.
