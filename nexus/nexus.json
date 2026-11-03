@@ -7,5 +7,11 @@
     "modManager": false,
     "archivePrevious": true,
     "description": "EDGEquest for Cyberpunk 2077 {version}, the VS Code extension. Extract, then in VS Code: Extensions view, ..., Install from VSIX. Or install it from the Marketplace or Open VSX, where it updates itself."
+  },
+  "mod": "14315126033318",
+  "pulled": {
+    "sha256": "e88e9f9149515b2c8b8b2d5c00bc829cf0233541f0d737c25f86055af384ab8a",
+    "at": "2026-11-03T20:49:40.743Z",
+    "version": "1.0"
   }
 }
