@@ -1,7 +1,7 @@
 {
   "name": "@edgemodders/edgequest-mcp",
   "version": "0.1.0",
-  "description": "EDGEquest for AI assistants over MCP: read Cyberpunk 2077's quests in plain words, their steps, choices, dialogue and journal entries, and check a quest mod's files against each other.",
+  "description": "EDGEquest for AI assistants over MCP: read Cyberpunk 2077's quests in plain words, write new quests from a story file, and check a quest mod's files against each other.",
   "license": "MIT",
   "author": "Edgemodders",
   "homepage": "https://edgemodders.github.io/EDGEquest/",
@@ -28,7 +28,8 @@
   "files": [
     "dist/server.cjs",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "ThirdPartyNotices.txt"
   ],
   "scripts": {
     "build": "node esbuild.mjs",

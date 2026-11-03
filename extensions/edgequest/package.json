@@ -1,7 +1,7 @@
 {
   "name": "edgequest",
   "displayName": "EDGEquest",
-  "description": "The EDGE quest maker for Cyberpunk 2077: read the game's quests in plain words, their steps, choices, dialogue and journal entries, and check a quest mod's files against each other.",
+  "description": "The EDGE quest maker for Cyberpunk 2077: read the game's quests in plain words, and write new ones as a story, with beats, scenes, choices, map markers, music and sound.",
   "publisher": "edgemodders",
   "version": "0.1.0",
   "license": "MIT",
@@ -307,6 +307,7 @@
     ]
   },
   "scripts": {
+    "vscode:prepublish": "npm run build",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",

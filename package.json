@@ -12,7 +12,15 @@
     "smoke": "npm run smoke --workspace extensions/edgequest",
     "edgequest:package": "node -e \"require('fs').mkdirSync('dist',{recursive:true})\" && cd extensions/edgequest && vsce package --no-dependencies --out ../../dist/",
     "mcp:build": "npm run build --workspace packages/edgequest-mcp",
-    "mcp:start": "node packages/edgequest-mcp/dist/server.cjs"
+    "mcp:start": "node packages/edgequest-mcp/dist/server.cjs",
+    "release:notes": "node tools/release-notes.mjs extensions/edgequest",
+    "release": "gh workflow run release.yml --ref main -f what=EDGEquest -f release=true",
+    "release:mcp": "gh workflow run release.yml --ref main -f what=edgequest-mcp -f release=true",
+    "release:nexus": "gh workflow run release.yml --ref main -f what=EDGEquest -f release=true -f nexus=true",
+    "nexus:pull": "node tools/nexus/nexus.mjs pull",
+    "nexus:status": "node tools/nexus/nexus.mjs status",
+    "nexus:zip": "node tools/nexus-zip.mjs",
+    "notices": "node tools/third-party-notices.mjs"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.0.0",
