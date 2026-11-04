@@ -1,8 +1,11 @@
 <!doctype html>
-<!-- Source for the README banner and the GitHub social preview.
+<!-- Source for the README banner, the GitHub social preview and the Nexus picture.
      Rendered to PNG by tools/brand/render.ps1 with headless Chrome:
        brand.html?banner  -> 1280 x 320
-       brand.html?social  -> 1280 x 640 -->
+       brand.html?social  -> 1280 x 640
+       brand.html?nexus   -> 1280 x 640, the social layout lower and tighter, with room at the top for
+                             the EDGEmodders header the owner adds by hand: its first line starts
+                             where REDsave's does (about y 228), below the header (about y 175) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -36,7 +39,8 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); }
     linear-gradient(90deg, rgba(25,243,255,.06) 1px, transparent 1px) 0 0 / 32px 32px,
     var(--bg);
 }
-.social .frame { height: 640px; padding: 72px 80px; grid-template-columns: 1fr; gap: 44px; align-content: center; }
+.social .frame, .nexus .frame { height: 640px; padding: 72px 80px; grid-template-columns: 1fr; gap: 44px; align-content: center; }
+.nexus .frame { padding-top: 167px; padding-bottom: 17px; gap: 28px; }
 
 /* corner brackets */
 .frame::before, .frame::after {
@@ -53,9 +57,12 @@ h1 {
 h1 span { color: var(--yellow); }
 .tag { font-family: var(--body); font-weight: 500; font-size: 26px; color: #c3c9d8; margin: 0; max-width: 52ch; text-wrap: balance; }
 .rule { height: 3px; width: 100%; max-width: 560px; margin-top: 22px; background: linear-gradient(90deg, var(--yellow) 0 72px, var(--line) 72px); }
-.social h1 { font-size: 150px; }
-.social .eyebrow { font-size: 18px; }
-.social .tag { font-size: 34px; max-width: 44ch; }
+.social h1, .nexus h1 { font-size: 150px; }
+.social .eyebrow, .nexus .eyebrow { font-size: 18px; }
+.social .tag, .nexus .tag { font-size: 34px; max-width: 44ch; }
+/* The Nexus picture's stack is shorter than the social one's, so it clears the header (as REDsave's does). */
+.nexus h1 { font-size: 132px; }
+.nexus .tag { font-size: 30px; max-width: none; }
 
 .panel {
   background: rgba(16,19,27,.92); border: 1px solid var(--line); padding: 18px 22px;
@@ -66,8 +73,8 @@ h1 span { color: var(--yellow); }
 .panel .row:last-child { border-bottom: 0; }
 .panel b { font-weight: 500; }
 .y { color: var(--yellow); } .c { color: var(--cyan); } .g { color: var(--green); }
-.social .panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; font-size: 15px; }
-.social .panel .row { border-bottom: 0; flex-direction: column; gap: 4px; }
+.social .panel, .nexus .panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; font-size: 15px; }
+.social .panel .row, .nexus .panel .row { border-bottom: 0; flex-direction: column; gap: 4px; }
 </style>
 </head>
 <body>
@@ -86,6 +93,7 @@ h1 span { color: var(--yellow); }
 </div>
 <script>
   if (location.search.includes("social")) document.body.classList.add("social");
+  if (location.search.includes("nexus")) document.body.classList.add("nexus");
 </script>
 </body>
 </html>

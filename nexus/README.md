@@ -21,7 +21,7 @@ The page is kept through Nexus's v3 API, as REDnode's, REDcode's and the other E
 | Brief overview | The EDGE quest maker in VS Code: read the game's quests in plain words, and write your own as a story with beats, choices, places, music and sound. A VS Code extension, not a game mod. (255 characters at most; this is 184) |
 | Author | Edgemodders |
 | Language | English |
-| Primary image | `docs/assets/brand/social.png` (1280 x 640). The banner is already at the top of the description |
+| Primary image | `docs/assets/brand/nexus.png` (1280 x 640): the social picture lower and tighter, with room at the top for the EDGEmodders header the owner adds by hand, its first line where REDsave's starts (`tools/brand/brand.html?nexus`, drawn by `tools/brand/render.ps1`). Or `social.png`. The banner is already at the top of the description |
 | Requirements | On Nexus: REDcode (35421) and ArchiveXL (4198). Off-site: VS Code 1.70 or later (or VSCodium, or EDGEkit) |
 | Permissions | MIT: open source, free to modify and redistribute with the license notice. Bundled packages keep their licenses (`ThirdPartyNotices.txt`). REDbridge, a separate download, is GPL-3.0 |
 | Tags | Modders resource, utility, tools, quests |
