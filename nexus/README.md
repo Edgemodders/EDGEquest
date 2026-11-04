@@ -21,7 +21,7 @@ The page is kept through Nexus's v3 API, as REDnode's, REDcode's and the other E
 | Brief overview | The EDGE quest maker in VS Code: read the game's quests in plain words, and write your own as a story with beats, choices, places, music and sound. A VS Code extension, not a game mod. (255 characters at most; this is 184) |
 | Author | Edgemodders |
 | Language | English |
-| Primary image | `docs/assets/brand/nexus.png` (1280 x 640): the social picture lower and tighter, with room at the top for the EDGEmodders header the owner adds by hand, its first line where REDsave's starts (`tools/brand/brand.html?nexus`, drawn by `tools/brand/render.ps1`). Or `social.png`. The banner is already at the top of the description |
+| Primary image | `docs/assets/brand/nexus.png` (1280 x 640): the social picture 55 px lower, with the EDGEmodders header the owner added at the top (2026-11-04; `tools/brand/brand.html?nexus`, drawn by `tools/brand/render.ps1`, which draws over the header: put it on again after a redraw). Or `social.png`. The banner is already at the top of the description |
 | Requirements | On Nexus: REDcode (35421) and ArchiveXL (4198). Off-site: VS Code 1.70 or later (or VSCodium, or EDGEkit) |
 | Permissions | MIT: open source, free to modify and redistribute with the license notice. Bundled packages keep their licenses (`ThirdPartyNotices.txt`). REDbridge, a separate download, is GPL-3.0 |
 | Tags | Modders resource, utility, tools, quests |
@@ -51,7 +51,7 @@ The release workflow builds it whenever it builds EDGEquest (`tools/nexus-zip.mj
 
 The key: in CI the organisation secret `NEXUS_KEY`; on the dev PC the DPAPI file `%APPDATA%\Edgemodders\nexus-key.txt` (`tools/nexus/api.mjs`). Never print it or pass it on a command line.
 
-Pulled on 2026-11-03: the live description was Nexus's empty template (`nexus.json` records it), so the first release with **Update Nexus Mods** pushes this one.
+Pulled on 2026-11-03: the live description was Nexus's empty template. The owner then put this description on the page with two screenshots (images hosted by Nexus, under the opening line), pulled 2026-11-04: the repo's copy is the live one, so the first release pushes no description change.
 
 Keep these in step with the extension (its README and the CHANGELOG):
 

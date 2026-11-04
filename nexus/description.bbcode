@@ -6,11 +6,12 @@
 [center][/center]
 [center][color=#f6b26b][size=3][i]An early preview: small quests with V, choices and branches, tested in the game.[/i][/size][/color][/center]
 [line]
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35750/35750-1793794557-1854056394.png[/img]
 
+[img]https://staticdelivery.nexusmods.com/mods/3333/images/35750/35750-1793794601-768857101.png[/img]
 [quote][size=4][b][color=#fcee0a]STATUS: PREVIEW[/color][/b][/size]
 What is here works and is tested in the game. New features land in small updates.
 [b]This is not a game mod.[/b] It is an extension for VS Code, so install it there (steps below), not with Vortex. The quickest way is straight from the [url=https://marketplace.visualstudio.com/items?itemName=edgemodders.edgequest]VS Code Marketplace[/url] or [url=https://open-vsx.org/extension/edgemodders/edgequest]Open VSX[/url]; the file here is the same extension.[/quote]
-
 [size=5][b][color=#fcee0a]What EDGEquest is[/color][/b][/size]
 
 EDGEquest is built by [url=https://edgemodders.ai/]EDGEmodders[/url], a modding community whose idea is simple: [b]anyone can mod[/b]. Quests are among the hardest things to mod in Cyberpunk 2077: graphs of nodes, facts, journal entries, scenes and their texts, all in binary files that must agree with each other. EDGEquest turns that into words. You read the game's quests as numbered steps, and you write a quest as a story: beats with objectives, places, and scenes with lines and choices.
@@ -37,7 +38,6 @@ Saving the story file makes the quest's game files: the quest phase, the journal
 [*][b]Choices[/b] can be yellow (they move the quest on), white, for one lifepath, an attribute check, or a payment that takes the eddies.[/*]
 [*][b]Music and sound:[/b] start and stop the game's music cues, and play its sound events or your own sounds made with [url=https://github.com/Edgemodders/EDGEwave]EDGEwave[/url], in a beat or between a scene's lines. The picker plays each one before you pick it.[/*]
 [/list]
-
 [size=4][b][color=#19f3ff]The checklist[/color][/b][/size]
 What is still a stand-in, such as lines shown as text with no voice yet, is listed in the story file with the EDGE tool that can do it, and ticks itself when it is done.
 
@@ -58,8 +58,7 @@ Planned: phone calls with game characters, copying a game scene into your quest,
 [*][url=https://www.nexusmods.com/cyberpunk2077/mods/35421]REDcode[/url]: it finds the game, installs REDbridge (0.11.0 or later) and the .NET 10 runtime, and packs and installs your quest.[/*]
 [*][url=https://www.nexusmods.com/cyberpunk2077/mods/4198]ArchiveXL[/url] in the game, for the quests you make.[/*]
 [*]Optional: [url=https://github.com/Edgemodders/EDGEwave]EDGEwave[/url] to find, hear and make sounds; [url=https://github.com/Edgemodders/REDnode]REDnode[/url] to hear music in the running game.[/*]
-[/list]
-[size=5][b][color=#fcee0a]Install[/color][/b][/size]
+[/list][size=5][b][color=#fcee0a]Install[/color][/b][/size]
 
 [b]From a store (recommended, updates itself):[/b] in VS Code, open the Extensions view (Ctrl+Shift+X), search for [b]EDGEquest[/b] and click Install. Or open its [url=https://marketplace.visualstudio.com/items?itemName=edgemodders.edgequest]Marketplace[/url] or [url=https://open-vsx.org/extension/edgemodders/edgequest]Open VSX[/url] page.
 
@@ -69,8 +68,7 @@ Planned: phone calls with game characters, copying a game scene into your quest,
 [*]Download the main file with [b]Manual download[/b] and extract it anywhere.[/*]
 [*]In VS Code, open the Extensions view (Ctrl+Shift+X), click [b]...[/b] at its top, choose [b]Install from VSIX...[/b] and pick [i]edgequest-<version>.vsix[/i].[/*]
 [*]Click the EDGEquest icon in the activity bar.[/*]
-[/list]
-Do not install it with Vortex: it is not a game mod, and Vortex would put it in the game folder.
+[/list]Do not install it with Vortex: it is not a game mod, and Vortex would put it in the game folder.
 
 [size=5][b][color=#fcee0a]The EDGE platform[/color][/b][/size]
 
@@ -82,8 +80,7 @@ EDGEquest is one of the EDGE tools. Each works on its own and together:
 [*][b][url=https://github.com/Edgemodders/EDGEdeck]EDGEdeck[/url][/b]: a simple mod manager in VS Code, for installs you can undo.[/*]
 [*][b][url=https://github.com/Edgemodders/REDnode]REDnode[/url][/b]: mods in JavaScript and web pages over the game; it plays music in the running game for EDGEquest's picker.[/*]
 [*][b][url=https://github.com/Edgemodders/REDbridge]REDbridge[/url][/b]: runs WolvenKit's libraries for the EDGE tools.[/*]
-[/list]
-[size=5][b][color=#fcee0a]Questions[/color][/b][/size]
+[/list][size=5][b][color=#fcee0a]Questions[/color][/b][/size]
 
 [b]Do I need to know how quests work inside?[/b]
 No. You write beats, places, lines and choices; EDGEquest writes the nodes, facts and files. The raw files are one click away when you want to see them, in REDcode.
@@ -108,12 +105,10 @@ Yes, and open source under the MIT license. The code is on [url=https://github.c
 [*]VS Code Marketplace: [url=https://marketplace.visualstudio.com/items?itemName=edgemodders.edgequest]edgemodders.edgequest[/url][/*]
 [*]Open VSX: [url=https://open-vsx.org/extension/edgemodders/edgequest]edgemodders/edgequest[/url][/*]
 [*]Community Discord: [url=https://discord.gg/63qP3Erw43]discord.gg/63qP3Erw43[/url][/*]
-[/list]
-[size=5][b][color=#fcee0a]Credits[/color][/b][/size]
+[/list][size=5][b][color=#fcee0a]Credits[/color][/b][/size]
 
 [list]
 [*][b]WolvenKit[/b] and its team and contributors (GPL-3.0): every game file EDGEquest reads and writes goes through their libraries, in REDbridge.[/*]
 [*][b]ArchiveXL[/b] by psiberx: how a quest mod adds its phases, journal and texts to the game.[/*]
 [*]The Cyberpunk 2077 modding community, whose quest research and tools this builds on.[/*]
-[/list]
-[size=2]EDGEquest is not affiliated with CD PROJEKT RED, the WolvenKit team or Microsoft. Cyberpunk 2077 and REDengine are trademarks of CD PROJEKT. Visual Studio Code is a trademark of Microsoft.[/size]
+[/list][size=2]EDGEquest is not affiliated with CD PROJEKT RED, the WolvenKit team or Microsoft. Cyberpunk 2077 and REDengine are trademarks of CD PROJEKT. Visual Studio Code is a trademark of Microsoft.[/size]
