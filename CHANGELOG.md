@@ -4,6 +4,8 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 
 ## Unreleased
 
+## 0.1.0 (2026-11-04)
+
 **New**
 
 - Game Quests view: every quest, phase and scene in the game, folders titled with their quest's name.
