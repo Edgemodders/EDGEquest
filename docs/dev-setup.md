@@ -70,8 +70,8 @@ npm install
 npm run typecheck            # both packages
 npm run build                # extensions/edgequest/dist and packages/edgequest-mcp/dist
 npm run smoke                # the core against the installed game (see Tests)
-npm run edgequest:package    # dist\edgequest-0.1.0.vsix
-code --install-extension dist\edgequest-0.1.0.vsix
+npm run edgequest:package    # dist\edgequest-0.1.1.vsix
+code --install-extension dist\edgequest-0.1.1.vsix
 ```
 
 The smoke test finds the game and REDbridge from the VS Code settings (`edgequest.*`, then `redcode.*`), as the extension does. F5 in VS Code, with the repository open, runs the extension in a development host (`.vscode/launch.json`, "Run EDGEquest"); build first.

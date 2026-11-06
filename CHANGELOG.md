@@ -4,6 +4,8 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 
 ## Unreleased
 
+## 0.1.1 (2026-11-06)
+
 **Fixed**
 
 - Voicing a scene with a sound in it (Generate, or `quest_voice` with `prepare`) no longer breaks the story file with `"sound" cannot speak in this scene`. A file it already broke names the fix in the Storyboard's problems, and `quest_voice` with `prepare` repairs it.

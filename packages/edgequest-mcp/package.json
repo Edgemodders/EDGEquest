@@ -1,6 +1,6 @@
 {
   "name": "@edgemodders/edgequest-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "EDGEquest for AI assistants over MCP: read Cyberpunk 2077's quests in plain words, write new quests from a story file, and check a quest mod's files against each other.",
   "license": "MIT",
   "author": "Edgemodders",

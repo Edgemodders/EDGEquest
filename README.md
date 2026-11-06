@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://edgemodders.github.io/EDGEquest/"><img src="docs/assets/brand/badges/docs.svg" alt="docs: read the docs"></a>
-  <img src="docs/assets/brand/badges/status.svg" alt="status: 0.1.0 preview">
+  <img src="docs/assets/brand/badges/status.svg" alt="status: 0.1.1 preview">
   <img src="docs/assets/brand/badges/game.svg" alt="game: Cyberpunk 2077">
   <img src="docs/assets/brand/badges/makes.svg" alt="makes: quests">
   <a href="LICENSE"><img src="docs/assets/brand/badges/license.svg" alt="license: MIT"></a>
@@ -17,7 +17,7 @@ EDGEquest builds on the other EDGE tools: [REDcode](https://github.com/Edgemodde
 **[Read the docs](https://edgemodders.github.io/EDGEquest/)** &middot; [Design](docs/design.md) &middot; [Dev setup](docs/dev-setup.md)
 
 > [!NOTE]
-> **Status: 0.1.0 preview released on 2026-11-04.** EDGEquest reads the game's quests in plain words and makes new ones from a story file: beats with journal objectives, places on the map, and scenes where V speaks and makes choices that branch the quest to different endings. Choice options can be yellow or white, for one lifepath, an attribute check or a payment; a quest can start and stop the game's music and play its sounds or your own. The Storyboard edits a quest as cards, one per beat, and the MCP server lets an assistant start, edit and make a quest. Everything in this preview is tested in the game. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=edgemodders.edgequest), [Open VSX](https://open-vsx.org/extension/edgemodders/edgequest) or [Nexus Mods](https://www.nexusmods.com/cyberpunk2077/mods/35750), and start with [Getting started](https://edgemodders.github.io/EDGEquest/guide.html). Next: phone calls and copying a game scene into your quest. What changed is in the [changelog](CHANGELOG.md), and where it goes is in the [design](docs/design.md). For game 2.5, with REDbridge 0.11.0 or later.
+> **Status: 0.1.1 preview released on 2026-11-06.** EDGEquest reads the game's quests in plain words and makes new ones from a story file: beats with journal objectives, places on the map, and scenes where V speaks and makes choices that branch the quest to different endings. Choice options can be yellow or white, for one lifepath, an attribute check or a payment; a quest can start and stop the game's music and play its sounds or your own. The Storyboard edits a quest as cards, one per beat, and the MCP server lets an assistant start, edit and make a quest. Everything in this preview is tested in the game. Install it from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=edgemodders.edgequest), [Open VSX](https://open-vsx.org/extension/edgemodders/edgequest) or [Nexus Mods](https://www.nexusmods.com/cyberpunk2077/mods/35750), and start with [Getting started](https://edgemodders.github.io/EDGEquest/guide.html). Next: phone calls and copying a game scene into your quest. What changed is in the [changelog](CHANGELOG.md), and where it goes is in the [design](docs/design.md). For game 2.5, with REDbridge 0.11.0 or later.
 
 ## Repository layout
 
