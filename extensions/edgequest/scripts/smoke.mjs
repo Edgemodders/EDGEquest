@@ -253,6 +253,18 @@ try {
     const every = core.assignVoiceIds(storyNow, true);
     const after = core.readStory(every.text).story;
     check(every.added === 2 && core.storyLines(after).every((l) => l.voice?.id), "preparing for voicing gives every line a voice id, and nothing else", `${every.added} added`);
+    // A sound in a scene is not a line: Generate on such a scene left the file unreadable in 0.1.0.
+    const withSound = core.insertItem(core.insertItem(storyNow, leave, 0, { sound: "edgewave_test" }), ["scenes", "arrival"], 1, { sound: "sa_airdrop_package_land" });
+    const voiced = core.assignVoiceIds(withSound, true);
+    const voicedRead = core.readStory(voiced.text);
+    const soundHasVoice = /sound: \w+\r?\n\s+voice:/;
+    check(voiced.added === every.added && !soundHasVoice.test(voiced.text) && !voicedRead.problems.length && core.storyLines(voicedRead.story).length === core.storyLines(after).length,
+      "preparing for voicing leaves a scene's sounds alone, inside a choice too", voiced.text);
+    const damaged = withSound.replace(/^(\s*)- sound: sa_airdrop_package_land\r?$/m, "$1- sound: sa_airdrop_package_land\n$1  voice:\n$1    id: abcd");
+    const repaired = core.assignVoiceIds(damaged, true);
+    const byHand = damaged.replace("id: abcd", "id: abcd\n        direction: Loud");
+    check(soundHasVoice.test(damaged) && !soundHasVoice.test(repaired.text) && repaired.added === every.added + 1 && core.readStory(damaged).problems.some((x) => /sound: item is not spoken/.test(x.message)) && core.assignVoiceIds(byHand, true).text.includes("direction: Loud"),
+      "a sound 0.1.0 gave a voice id is named and repaired, and words written by hand are kept", repaired.text);
   } finally {
     fs.rmSync(proj, { recursive: true, force: true });
   }

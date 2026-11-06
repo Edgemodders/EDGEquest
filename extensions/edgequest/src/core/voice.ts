@@ -126,19 +126,19 @@ function newId(used: Set<string>): string {
 
 /** Gives every voice: block in a story file an id where it has none, keeping the file's comments. A line with
  *  no voice: keeps its place-based id until it gets one; everyLine gives those a voice: { id } too, as before
- *  voicing (a take must stay on its line). */
+ *  voicing (a take must stay on its line). added counts every change, so a caller knows to keep the text. */
 export function assignVoiceIds(text: string, everyLine = false): { text: string; added: number } {
   const doc = parseDocument(text);
   const scenes = doc.get("scenes", true);
   if (!isMap(scenes)) return { text, added: 0 };
-  type Visit = (line: { has(k: string): boolean; get(k: string, keep: true): unknown; set(k: string, v: unknown): void }) => void;
+  type Visit = (line: { has(k: string): boolean; get(k: string, keep: true): unknown; set(k: string, v: unknown): void; delete(k: string): boolean }) => void;
   const walk = (list: unknown, visit: Visit) => {
     if (!isSeq(list)) return;
     for (const it of list.items) {
       if (!isMap(it)) continue;
       const choice = it.get("choice", true);
       if (isMap(choice)) { for (const p of choice.items) walk(isMap(p.value) ? p.value.get("then", true) : p.value, visit); continue; }
-      if (it.has("voice") || (everyLine && !it.has("set") && !it.has("go"))) visit(it);
+      if (it.has("voice") || (everyLine && !it.has("set") && !it.has("go") && !it.has("sound"))) visit(it);
     }
   };
   const lists = scenes.items.map((p) => (isMap(p.value) ? p.value.get("lines", true) : p.value));
@@ -147,6 +147,8 @@ export function assignVoiceIds(text: string, everyLine = false): { text: string;
   let added = 0;
   const give = (d: Document) => (line: Parameters<Visit>[0]) => {
     const v = line.get("voice", true);
+    // 0.1.0 gave sounds a voice: { id } too, and then read them as lines. Anything more was written by hand: readStory names it.
+    if (line.has("sound")) { if (isMap(v) && v.items.length === 1 && v.has("id")) { line.delete("voice"); added++; } return; }
     if (isMap(v)) {
       if (v.has("id")) return;
       v.items.unshift(d.createPair("id", newId(used)) as never);

@@ -308,6 +308,7 @@ export function readStory(text: string): StoryRead {
         if (event) items.push({ kind: "sound", event });
       } else if (keys.filter((k) => k !== "voice").length === 1) {
         const speaker = keys.find((k) => k !== "voice")!;
+        if (["sound", "set", "go", "choice"].includes(speaker)) { add(p, where, `A ${speaker}: item is not spoken, so it takes no voice:. Delete the voice: under it.`); return; }
         if (!speakers.has(speaker)) { add(p, where, `"${speaker}" cannot speak in this scene. Speakers here: ${[...speakers].join(", ")}.`); return; }
         const voice = "voice" in o ? readVoice(o.voice, [...p, "voice"], where) : undefined;
         items.push({ kind: "line", speaker, text: String(o[speaker] ?? "").trim(), ...(voice ? { voice } : {}) });

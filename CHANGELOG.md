@@ -4,6 +4,10 @@ What changed in EDGEquest, newest first. Add a line under **Unreleased** in the 
 
 ## Unreleased
 
+**Fixed**
+
+- Voicing a scene with a sound in it (Generate, or `quest_voice` with `prepare`) no longer breaks the story file with `"sound" cannot speak in this scene`. Doing it again repairs a file it already broke.
+
 ## 0.1.0 (2026-11-04)
 
 **New**

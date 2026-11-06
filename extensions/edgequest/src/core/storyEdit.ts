@@ -299,7 +299,7 @@ export function setLine(text: string, line: Path, change: { speaker?: string; te
   const doc = parse(text);
   const item = doc.getIn(line, true);
   if (!isMap(item)) throw new StoryEditError("There is no line there.");
-  const pair = item.items.find((p) => !["voice", "choice", "set", "go"].includes(keyOf(p)));
+  const pair = item.items.find((p) => !["voice", "choice", "set", "go", "sound"].includes(keyOf(p)));
   if (!pair) throw new StoryEditError("There is no line there.");
   if (change.speaker !== undefined && change.speaker.trim()) pair.key = new Scalar(change.speaker.trim());
   if (change.text !== undefined) {
