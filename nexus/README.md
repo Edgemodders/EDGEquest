@@ -2,7 +2,7 @@
 
 The source of EDGEquest's Nexus Mods page lives here, so updates are edits in the repo, not in Nexus's text box. **The page: [mod 35750](https://www.nexusmods.com/cyberpunk2077/mods/35750)** (created by the owner on 2026-11-03; no files until the first release).
 
-The page is kept through Nexus's v3 API, as REDnode's, REDcode's and the other EDGE tools' are: `tools/nexus/` (copied from REDnode unchanged; keep the copies the same) and `nexus.json` (the page, and how a release uploads: Mod Manager Download off, the old version archived). The release workflow's **Update Nexus Mods** box, with What EDGEquest, uploads the Nexus zip, adds the changelog and pushes `description.bbcode`.
+The page is kept through Nexus's v3 API, as REDnode's, REDcode's and the other EDGE tools' are: the Nexus tool (shared, in [EDGErepo](https://github.com/Edgemodders/EDGErepo); the npm scripts and the commands here need it checked out beside this repo, `../EDGErepo`, and the release workflow clones it at the tag `v1`) and `nexus.json` (the page, and how a release uploads: Mod Manager Download off, the old version archived). The release workflow's **Update Nexus Mods** box, with What EDGEquest, uploads the Nexus zip, adds the changelog and pushes `description.bbcode`.
 
 | File | What it is |
 |---|---|
@@ -47,9 +47,9 @@ The release workflow builds it whenever it builds EDGEquest (`tools/nexus-zip.mj
 1. Edit `description.bbcode` here, check it with `node tools/check-bbcode.mjs nexus/description.bbcode`, commit, push.
 2. With a release: tick **Update Nexus Mods** beside **Make a release**, What EDGEquest (or `npm run release:nexus`). After the GitHub release the workflow uploads the zip (the first release creates the main file; later ones add versions to it, the old one archived), adds the version's changelog (`npm run release:notes -- --nexus`) and pushes `description.bbcode` when it differs.
 3. The push never overwrites an edit made on Nexus: if the live description is neither the one last pulled nor the one the previous release pushed, the run stops before it builds. Then `npm run nexus:pull`, merge with `git diff`, commit, and run again. `npm run nexus:status` shows the page's version, files and whether its description matches.
-4. If the Nexus step fails after the GitHub release, run `node tools/nexus/nexus.mjs release --version <version> --zip <the release's Nexus zip> --notes <notes file>` on the dev PC: it skips what is already done. Add `--dry-run` to see what it would do.
+4. If the Nexus step fails after the GitHub release, run `node ../EDGErepo/tools/nexus/nexus.mjs release --version <version> --zip <the release's Nexus zip> --notes <notes file>` on the dev PC: it skips what is already done. Add `--dry-run` to see what it would do.
 
-The key: in CI the organisation secret `NEXUS_KEY`; on the dev PC the DPAPI file `%APPDATA%\Edgemodders\nexus-key.txt` (`tools/nexus/api.mjs`). Never print it or pass it on a command line.
+The key: in CI the organisation secret `NEXUS_KEY`; on the dev PC the DPAPI file `%APPDATA%\Edgemodders\nexus-key.txt` (EDGErepo's `tools/nexus/api.mjs`). Never print it or pass it on a command line.
 
 Pulled on 2026-11-03: the live description was Nexus's empty template. The owner then put this description on the page with two screenshots (images hosted by Nexus, under the opening line), pulled 2026-11-04: the repo's copy is the live one, so the first release pushes no description change.
 

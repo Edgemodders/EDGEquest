@@ -3,7 +3,7 @@
 // or the release workflow's Package step). Modelled on REDcode's tools/nexus-zip.mjs.
 //   node tools/nexus-zip.mjs
 // The release workflow runs it whenever it builds EDGEquest, attaches the zip to the GitHub release and,
-// with Update Nexus Mods, uploads it (tools/nexus/nexus.mjs release).
+// with Update Nexus Mods, uploads it (the Nexus tool's release, EDGErepo's tools/nexus/nexus.mjs).
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
